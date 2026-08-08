@@ -41,10 +41,8 @@ jobs:
         with:
           # Empty string falls back to the triggering ref.
           ref: ${{ github.event.inputs.ref || github.ref }}
-          # The Komelia submodule is only needed to build the web UI, which
-          # this image does not include. Skipping it also avoids failing on a
-          # submodule pointer that cannot be resolved.
-          submodules: false
+          # Needed to build the Komelia web UI that komf serves at "/".
+          submodules: recursive
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -55,6 +53,51 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+
+      - name: Build Komelia web UI
+        # komf serves this at "/" via staticResources(basePackage = "komelia").
+        # The repo has no Gradle wiring for it — upstream injects it during its
+        # own release process — so it is built here from the pinned submodule.
+        working-directory: Komelia
+        run: |
+          ./gradlew --no-daemon \
+            :komelia-app:wasmJsBrowserDistribution \
+            :komelia-image-decoder:wasm-image-worker:wasmJsBrowserDistribution
+
+      - name: Embed web UI into komf resources
+        run: |
+          set -euo pipefail
+          app="Komelia/komelia-app/build/dist/wasmJs/productionExecutable"
+          worker="Komelia/komelia-image-decoder/wasm-image-worker/build/dist/wasmJs/productionExecutable"
+          dest="komf-app/src/main/resources/komelia"
+
+          for d in "$app" "$worker"; do
+            if [ ! -d "$d" ]; then
+              echo "::error::Expected Komelia output at $d but it does not exist."
+              exit 1
+            fi
+          done
+
+          mkdir -p "$dest"
+          cp -R "$app"/. "$dest"/
+          cp -R "$worker"/. "$dest"/
+
+          if [ ! -f "$dest/index.html" ]; then
+            echo "::error::No index.html in $dest; komf would serve 404 at /."
+            ls -la "$dest" || true
+            exit 1
+          fi
+
+          # ServerModule installs preCompressed(GZIP), so ship .gz alongside the
+          # originals. Keeping both means a client that does not advertise gzip
+          # still gets a response.
+          find "$dest" -type f \
+            ! -name '*.gz' \
+            ! -name '*.map' \
+            -size +1k \
+            -exec gzip -9 -k -f {} +
+
+          echo "Embedded $(find "$dest" -type f | wc -l) files ($(du -sh "$dest" | cut -f1))"
 
       - name: Build fat JAR
         # The Dockerfile COPYs this artifact rather than building it, so it has
@@ -72,6 +115,15 @@ jobs:
             exit 1
           fi
           echo "Built $(du -h "$jar" | cut -f1) JAR"
+
+          # Guard against shipping an image that 404s at "/" — the web UI is
+          # copied in as a build step, so nothing else would catch its absence.
+          count=$(unzip -l "$jar" | grep -c 'komelia/' || true)
+          if [ "$count" -eq 0 ]; then
+            echo "::error::JAR contains no komelia/ resources; the web UI would 404."
+            exit 1
+          fi
+          echo "JAR contains $count komelia/ entries"
 
       - name: Compute image name and tag
         id: meta
