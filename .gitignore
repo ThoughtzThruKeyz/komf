@@ -52,3 +52,5 @@ kls-classpath*
 
 ### neovim ###
 .nvim.lua
+# Web UI built into the image by CI; not checked in (see PR #309 for why that matters)
+komf-app/src/main/resources/komelia/
