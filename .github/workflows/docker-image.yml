@@ -136,14 +136,14 @@ jobs:
         working-directory: Komelia
         run: |
           ./gradlew --no-daemon \
-            :komelia-app:wasmJsBrowserDistribution \
-            :komelia-image-decoder:wasm-image-worker:wasmJsBrowserDistribution
+            :komelia-app:webApp:wasmJsBrowserDistribution \
+            :komelia-infra:image-decoder:wasm-image-worker:wasmJsBrowserDistribution
 
       - name: Embed web UI into komf resources
         run: |
           set -euo pipefail
-          app="Komelia/komelia-app/build/dist/wasmJs/productionExecutable"
-          worker="Komelia/komelia-image-decoder/wasm-image-worker/build/dist/wasmJs/productionExecutable"
+          app="Komelia/komelia-app/webApp/build/dist/wasmJs/productionExecutable"
+          worker="Komelia/komelia-infra/image-decoder/wasm-image-worker/build/dist/wasmJs/productionExecutable"
           dest="komf-app/src/main/resources/komelia"
 
           for d in "$app" "$worker"; do
@@ -174,17 +174,28 @@ jobs:
 
           echo "Embedded $(find "$dest" -type f | wc -l) files ($(du -sh "$dest" | cut -f1))"
 
-      - name: Build browser extension
-        # The Chrome Web Store build is compiled against the released client and
-        # can never carry this fix, so a sideloadable build is produced here.
+      - name: Build browser extensions
+        # The store builds are compiled against the released client and can
+        # never carry this fix, so sideloadable builds are produced here. The
+        # extension tasks are registered per target browser.
         working-directory: Komelia
-        run: ./gradlew --no-daemon :komelia-komf-extension:app:assembleExtension
+        run: |
+          ./gradlew --no-daemon \
+            :komelia-komf-extension:app:assembleExtension_prod_firefox \
+            :komelia-komf-extension:app:assembleExtension_prod_chrome
 
-      - name: Upload browser extension
+      - name: Upload Firefox extension
         uses: actions/upload-artifact@v4
         with:
-          name: komf-extension-${{ github.sha }}
-          path: Komelia/komelia-komf-extension/app/build/extension
+          name: komf-extension-firefox-${{ github.sha }}
+          path: Komelia/komelia-komf-extension/app/build/extension_prod_firefox
+          if-no-files-found: error
+
+      - name: Upload Chrome extension
+        uses: actions/upload-artifact@v4
+        with:
+          name: komf-extension-chrome-${{ github.sha }}
+          path: Komelia/komelia-komf-extension/app/build/extension_prod_chrome
           if-no-files-found: error
 
       - name: Build fat JAR
