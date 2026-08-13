@@ -54,6 +54,60 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Publish patched komf-client to Maven Local
+        # Komelia pins a komf-client release from Maven Central, which emits
+        # absolute "/api/..." paths and so drops any reverse-proxy subpath. The
+        # fix lives in this repo's source, so the client is published locally
+        # under a unique version and Komelia is pointed at it below.
+        run: |
+          set -euo pipefail
+          ver="1.6.2-subpath-${GITHUB_SHA::7}"
+          echo "KOMF_CLIENT_VERSION=$ver" >> "$GITHUB_ENV"
+
+          # komf-client and komf-api-models both take their version from this
+          # catalog entry. komf-app is pinned to 1.0.0-SNAPSHOT independently,
+          # so the JAR name the Dockerfile copies is unaffected.
+          sed -i -E "s|^app-version = \"[^\"]*\"$|app-version = \"$ver\"|" gradle/libs.versions.toml
+          grep -qx "app-version = \"$ver\"" gradle/libs.versions.toml \
+            || { echo "::error::Failed to override app-version."; exit 1; }
+
+          ./gradlew --no-daemon \
+            --init-script .github/no-signing.init.gradle.kts \
+            :komf-api-models:publishToMavenLocal \
+            :komf-client:publishToMavenLocal
+
+          # Restore the catalog so the application build is unchanged; the
+          # artifacts Komelia needs are already in ~/.m2.
+          git checkout -- gradle/libs.versions.toml
+          echo "Published komf-client $ver to Maven Local"
+
+      - name: Point Komelia at the patched client
+        run: |
+          set -euo pipefail
+          toml="Komelia/gradle/libs.versions.toml"
+
+          # "komf-client" appears twice: the version string under [versions] and
+          # the module declaration under [libraries]. Match only the bare quoted
+          # value so the library entry is left intact.
+          sed -i -E "s|^komf-client = \"[^\"]*\"$|komf-client = \"${KOMF_CLIENT_VERSION}\"|" "$toml"
+
+          if ! grep -qx "komf-client = \"${KOMF_CLIENT_VERSION}\"" "$toml"; then
+            echo "::error::Failed to override the komf-client version in $toml."
+            grep -n '^komf-client' "$toml" || true
+            exit 1
+          fi
+          if ! grep -q '^komf-client = { module = "io.github.snd-r.komf:client"' "$toml"; then
+            echo "::error::The komf-client library declaration was damaged."
+            grep -n '^komf-client' "$toml" || true
+            exit 1
+          fi
+          grep -n '^komf-client' "$toml"
+
+          # Komelia lists mavenLocal() after mavenCentral(), so reusing a
+          # released version number would silently resolve the unpatched
+          # artifact from Central. This version exists only locally, so a failed
+          # publish surfaces as a resolution error instead of a wrong build.
+
       - name: Build Komelia web UI
         # komf serves this at "/" via staticResources(basePackage = "komelia").
         # The repo has no Gradle wiring for it — upstream injects it during its
@@ -98,6 +152,19 @@ jobs:
             -exec gzip -9 -k -f {} +
 
           echo "Embedded $(find "$dest" -type f | wc -l) files ($(du -sh "$dest" | cut -f1))"
+
+      - name: Build browser extension
+        # The Chrome Web Store build is compiled against the released client and
+        # can never carry this fix, so a sideloadable build is produced here.
+        working-directory: Komelia
+        run: ./gradlew --no-daemon :komelia-komf-extension:app:assembleExtension
+
+      - name: Upload browser extension
+        uses: actions/upload-artifact@v4
+        with:
+          name: komf-extension-${{ github.sha }}
+          path: Komelia/komelia-komf-extension/app/build/extension
+          if-no-files-found: error
 
       - name: Build fat JAR
         # The Dockerfile COPYs this artifact rather than building it, so it has
