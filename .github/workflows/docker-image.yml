@@ -290,6 +290,67 @@ jobs:
           print(f"{path}: startup now traced and exceptions reported")
           PY
 
+      - name: Make navbar mounting resilient to Angular render order
+        # The content script finishes startup before Kavita's Angular app
+        # renders, so the initial tryMount(document.body) finds no <nav> and
+        # returns false. Recovery then depends on the MutationObserver, which
+        # misses it twice over:
+        #
+        #   if (node.nodeType != ELEMENT_NODE || node.childNodes.length == 0) continue
+        #   val mounted = mediaServerComponent.tryMount(node as HTMLElement)
+        #
+        #   - nodes Angular inserts empty and populates later are skipped
+        #   - tryMount searches DESCENDANTS of the added node, so when the
+        #     added node is itself the <nav>, getElementsByTagName never
+        #     matches it
+        #
+        # Whether it mounts is therefore a race against Angular. Drop the
+        # empty-node guard, and retry against document.body whenever the
+        # node-scoped attempt fails and nothing has mounted yet, so any DOM
+        # change after the navbar exists will succeed. Re-inserting the same
+        # element moves it rather than duplicating, so retrying is safe.
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import sys
+
+          path = "Komelia/komelia-komf-extension/content/src/wasmJsMain/kotlin/snd/komelia/AppState.kt"
+
+          edits = [
+              (
+                  "if (node.nodeType != Node.ELEMENT_NODE || node.childNodes.length == 0) continue",
+                  "if (node.nodeType != Node.ELEMENT_NODE) continue",
+              ),
+              (
+                  "                    val mounted = mediaServerComponent.tryMount(node as HTMLElement)\n"
+                  "                    if (mounted) mountEvent.tryEmit(Unit)",
+                  "                    val mounted = mediaServerComponent.tryMount(node as HTMLElement) ||\n"
+                  "                            (document.getElementById(\"komf-canvas\") == null &&\n"
+                  "                                    document.body?.let { mediaServerComponent.tryMount(it) } == true)\n"
+                  "                    if (mounted) mountEvent.tryEmit(Unit)",
+              ),
+          ]
+
+          with open(path) as fh:
+              source = fh.read()
+
+          if 'document.getElementById("komf-canvas") == null' in source:
+              print(f"{path}: already patched, left alone")
+              sys.exit(0)
+
+          for old, new in edits:
+              count = source.count(old)
+              if count != 1:
+                  print(f"::error::Expected exactly 1 occurrence of {old!r} in {path}, "
+                        f"found {count}. Upstream may have changed it.")
+                  sys.exit(1)
+              source = source.replace(old, new)
+
+          with open(path, "w") as fh:
+              fh.write(source)
+          print(f"{path}: navbar mounting now retries against document.body")
+          PY
+
       - name: Build browser extensions
         # The store builds are compiled against the released client and can
         # never carry this fix, so sideloadable builds are produced here. The
