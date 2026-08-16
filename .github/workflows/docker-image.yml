@@ -184,6 +184,46 @@ jobs:
             :komelia-komf-extension:app:assembleExtension_prod_firefox \
             :komelia-komf-extension:app:assembleExtension_prod_chrome
 
+      - name: Declare "scripting" as an optional permission
+        # Both manifests at the pinned Komelia list "scripting" under
+        # permissions but omit optional_permissions, while the extension
+        # requests it at runtime when an origin is granted. Browsers refuse to
+        # request a permission that is not declared optional, so granting an
+        # origin fails with:
+        #   Cannot request permission scripting since it was not declared in
+        #   optional_permissions
+        # An earlier Komelia declared it in both places; this is a regression in
+        # the newer tree. Patch the built manifests rather than the submodule so
+        # the fix survives a submodule bump and disappears on its own once
+        # upstream restores the declaration.
+        run: |
+          set -euo pipefail
+          patched=0
+          for browser in firefox chrome; do
+            manifest="Komelia/komelia-komf-extension/app/build/extension_prod_${browser}/manifest.json"
+            if [ ! -f "$manifest" ]; then
+              echo "::error::Expected $manifest but it does not exist."
+              exit 1
+            fi
+            python3 - "$manifest" <<'PY'
+          import json, sys
+          path = sys.argv[1]
+          with open(path) as fh:
+              manifest = json.load(fh)
+          optional = manifest.get("optional_permissions", [])
+          if "scripting" in optional:
+              print(f"{path}: already declared, left alone")
+              sys.exit(0)
+          optional.append("scripting")
+          manifest["optional_permissions"] = optional
+          with open(path, "w") as fh:
+              json.dump(manifest, fh, indent=2)
+          print(f"{path}: added scripting to optional_permissions")
+          PY
+            patched=$((patched + 1))
+          done
+          echo "Checked $patched manifests"
+
       - name: Upload Firefox extension
         uses: actions/upload-artifact@v4
         with:
