@@ -241,6 +241,55 @@ jobs:
           print(f"{path}: Kavita detection fixed, media-server selection now logged")
           PY
 
+      - name: Trace extension startup
+        # main() launches a coroutine with no error handling:
+        #
+        #   coroutineScope.launch {
+        #       val app = initApplication(coroutineScope)
+        #       app.launch()
+        #   }
+        #
+        # Anything thrown inside it — client construction, settings access,
+        # Compose setup — kills the coroutine silently. The page shows the
+        # logger init line and then nothing, which is indistinguishable from
+        # "never injected". Wrap it so failures are actually reported, and
+        # trace each stage so a partial startup is visible too.
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import sys
+
+          path = "Komelia/komelia-komf-extension/content/src/wasmJsMain/kotlin/snd/komelia/Main.kt"
+          old = ("        val app = initApplication(coroutineScope)\n"
+                 "        app.launch()")
+          new = ("        try {\n"
+                 '            logger.info { "Komf: startup begin" }\n'
+                 "            val app = initApplication(coroutineScope)\n"
+                 '            logger.info { "Komf: initApplication ok" }\n'
+                 "            app.launch()\n"
+                 '            logger.info { "Komf: launch ok" }\n'
+                 "        } catch (e: Throwable) {\n"
+                 '            logger.error(e) { "Komf: startup FAILED: ${e::class.simpleName}: ${e.message}" }\n'
+                 "        }")
+
+          with open(path) as fh:
+              source = fh.read()
+
+          if '"Komf: startup begin"' in source:
+              print(f"{path}: already patched, left alone")
+              sys.exit(0)
+
+          count = source.count(old)
+          if count != 1:
+              print(f"::error::Expected exactly 1 occurrence of the main() body in "
+                    f"{path}, found {count}. Upstream may have changed it.")
+              sys.exit(1)
+
+          with open(path, "w") as fh:
+              fh.write(source.replace(old, new))
+          print(f"{path}: startup now traced and exceptions reported")
+          PY
+
       - name: Build browser extensions
         # The store builds are compiled against the released client and can
         # never carry this fix, so sideloadable builds are produced here. The
