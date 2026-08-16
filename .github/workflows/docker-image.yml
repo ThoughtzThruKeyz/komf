@@ -184,22 +184,28 @@ jobs:
             :komelia-komf-extension:app:assembleExtension_prod_firefox \
             :komelia-komf-extension:app:assembleExtension_prod_chrome
 
-      - name: Declare "scripting" as an optional permission
-        # Both manifests at the pinned Komelia list "scripting" under
-        # permissions but omit optional_permissions, while the extension
-        # requests it at runtime when an origin is granted. Browsers refuse to
-        # request a permission that is not declared optional, so granting an
-        # origin fails with:
+      - name: Declare "scripting" as an optional permission (Firefox)
+        # The manifests at the pinned Komelia list "scripting" under permissions
+        # but omit optional_permissions, while the extension requests it at
+        # runtime when an origin is granted. Firefox refuses to request a
+        # permission that is not declared optional, so granting an origin fails
+        # with:
         #   Cannot request permission scripting since it was not declared in
         #   optional_permissions
         # An earlier Komelia declared it in both places; this is a regression in
-        # the newer tree. Patch the built manifests rather than the submodule so
+        # the newer tree. Patch the built manifest rather than the submodule so
         # the fix survives a submodule bump and disappears on its own once
         # upstream restores the declaration.
         run: |
           set -euo pipefail
           patched=0
-          for browser in firefox chrome; do
+          # Firefox only. Chrome grants "scripting" at install because it is a
+          # required permission, and rejects the optional entry as redundant:
+          #   Optional permission 'scripting' is redundant with the required
+          #   permissions; this permission will be omitted.
+          # Firefox instead refuses permissions.request() for anything absent
+          # from optional_permissions, even when it is already required.
+          for browser in firefox; do
             manifest="Komelia/komelia-komf-extension/app/build/extension_prod_${browser}/manifest.json"
             if [ ! -f "$manifest" ]; then
               echo "::error::Expected $manifest but it does not exist."
