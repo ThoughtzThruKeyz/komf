@@ -129,6 +129,60 @@ jobs:
           # artifact from Central. This version exists only locally, so a failed
           # publish surfaces as a resolution error instead of a wrong build.
 
+      - name: Fix mislabeled provider settings strings
+        # Three entries in Komelia's string table carry the wrong text, which is
+        # why the provider edit dialog looks like it renders sections twice:
+        #
+        #   komf_edit_tab_series_metadata   "Book metadata" -> "Series metadata"
+        #   komf_providers_series_authors   "Age rating"    -> "Authors"
+        #   komf_providers_series_title     "Tags"          -> "Title"
+        #
+        # The dialog really does have separate Series and Book tabs, and the
+        # series tab really does list Authors and Title switches — every one of
+        # them is bound to the right config field, so only the labels are wrong.
+        # The Authors label matters beyond cosmetics: turning that switch off is
+        # how a provider is stopped from supplying authors, and it currently
+        # looks like a second "Age rating".
+        #
+        # Patch the submodule before either build, since komelia-ui supplies the
+        # strings for both the web UI and the extension. Idempotent, so it
+        # no-ops once upstream fixes it.
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import sys
+
+          path = "Komelia/komelia-ui/src/commonMain/composeResources/values/strings.xml"
+
+          edits = [
+              ('<string name="komf_edit_tab_series_metadata">Book metadata</string>',
+               '<string name="komf_edit_tab_series_metadata">Series metadata</string>'),
+              ('<string name="komf_providers_series_authors">Age rating</string>',
+               '<string name="komf_providers_series_authors">Authors</string>'),
+              ('<string name="komf_providers_series_title">Tags</string>',
+               '<string name="komf_providers_series_title">Title</string>'),
+          ]
+
+          with open(path) as fh:
+              source = fh.read()
+
+          if all(new in source for _, new in edits):
+              print(f"{path}: already patched, left alone")
+              sys.exit(0)
+
+          for old, new in edits:
+              count = source.count(old)
+              if count != 1:
+                  print(f"::error::Expected exactly 1 occurrence of {old!r} in "
+                        f"{path}, found {count}. Upstream may have changed it.")
+                  sys.exit(1)
+              source = source.replace(old, new)
+
+          with open(path, "w") as fh:
+              fh.write(source)
+          print(f"{path}: provider settings labels corrected")
+          PY
+
       - name: Build Komelia web UI
         # komf serves this at "/" via staticResources(basePackage = "komelia").
         # The repo has no Gradle wiring for it — upstream injects it during its
