@@ -32,6 +32,8 @@ import snd.komf.providers.bookwalker.model.BookWalkerSeriesId
 
 const val bookWalkerBaseUrl = "https://bookwalker.com"
 
+private val whitespace = "\\s+".toRegex()
+
 /**
  * Maps catalog rows onto Komf's metadata model.
  *
@@ -137,9 +139,37 @@ class BookWalkerMapper(
         )
 
     private fun getAuthors(book: BookWalkerBook): List<Author> {
-        val artists = book.artists.flatMap { name -> artistRoles.map { role -> Author(name, role) } }
-        val authors = book.authors.flatMap { name -> authorRoles.map { role -> Author(name, role) } }
+        val artists = book.artists
+            .map { collapseRepeatedNameToken(it) }
+            .flatMap { name -> artistRoles.map { role -> Author(name, role) } }
+        val authors = book.authors
+            .map { collapseRepeatedNameToken(it) }
+            .flatMap { name -> authorRoles.map { role -> Author(name, role) } }
         return artists + authors
+    }
+
+    /**
+     * BookWalker files some contributors with the leading part of the name
+     * repeated in front of the full name: "Tomato Soup" is stored as "Tomato
+     * Tomato Soup", "Magica Quartet" as "Magica Magica Quartet", "FromSoftware,
+     * Inc." as "FromSoftware, FromSoftware, Inc.". The store renders the same
+     * doubled string, so it is BookWalker's own data and not a defect in the
+     * export or in the parsing here; 44 of the export's 9980 contributors are
+     * affected. Every other provider supplies the undoubled name, so leaving it
+     * alone also means the same person lands in the media server twice whenever
+     * BookWalker wins for one field and another provider for the next.
+     *
+     * Only a repeat that is followed by at least one more token is collapsed,
+     * which leaves genuinely doubled two-word names ("Eiki Eiki", "Asato Asato")
+     * intact. Nothing in the data distinguishes a doubled given name from a name
+     * that really does start with a repeated word, so the one known false
+     * positive — "Nyan Nyan Factory", correct on AniList and MAL — is shortened
+     * to "Nyan Factory".
+     */
+    private fun collapseRepeatedNameToken(name: String): String {
+        val tokens = name.trim().split(whitespace)
+        if (tokens.size < 3 || !tokens[0].equals(tokens[1], ignoreCase = true)) return name.trim()
+        return tokens.drop(1).joinToString(" ")
     }
 
     /**
