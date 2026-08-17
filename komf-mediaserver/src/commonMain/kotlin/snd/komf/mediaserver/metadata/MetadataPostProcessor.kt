@@ -41,8 +41,8 @@ class MetadataPostProcessor(
     private fun postProcessSeries(series: SeriesMetadata): SeriesMetadata {
         val altTitles = if (alternativeSeriesTitles)
             series.titles.asSequence()
-                .filter { (it.language == null || it.language in alternativeSeriesTitleLanguages) }
-                .sortedWith(compareBy(nullsLast()) { it.language })
+                .filter { it.language == null || languagePriority(it.language) != null }
+                .sortedBy { languagePriority(it.language) ?: Int.MAX_VALUE }
                 .distinctBy { distinctName(it.name) }
                 .toList()
         else emptyList()
@@ -67,6 +67,25 @@ class MetadataPostProcessor(
             language = series.language ?: languageValue,
             tags = tags,
         )
+    }
+
+    /**
+     * Position of [language] in the configured alternative title languages, or
+     * null when it is not configured at all.
+     *
+     * Alternative titles used to be sorted by language name, which made the
+     * configured order meaningless: "ja" always sorted before "ja-ro". That is
+     * invisible on Komga, which stores every alternative title, but Kavita has
+     * a single localizedName field and takes the first alternative title, so
+     * the native title always won and the romanized one was never stored.
+     * Ordering by the configured position makes the first configured language
+     * the one that reaches a single-slot media server.
+     */
+    private fun languagePriority(language: String?): Int? {
+        if (language == null) return null
+        return alternativeSeriesTitleLanguages
+            .indexOfFirst { it.equals(language, ignoreCase = true) }
+            .takeIf { it != -1 }
     }
 
     private fun MutableList<String>.addScoreTag(series: SeriesMetadata) {

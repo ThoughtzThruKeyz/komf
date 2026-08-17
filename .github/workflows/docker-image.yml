@@ -129,6 +129,60 @@ jobs:
           # artifact from Central. This version exists only locally, so a failed
           # publish surfaces as a resolution error instead of a wrong build.
 
+      - name: Fix mislabeled provider settings strings
+        # Three entries in Komelia's string table carry the wrong text, which is
+        # why the provider edit dialog looks like it renders sections twice:
+        #
+        #   komf_edit_tab_series_metadata   "Book metadata" -> "Series metadata"
+        #   komf_providers_series_authors   "Age rating"    -> "Authors"
+        #   komf_providers_series_title     "Tags"          -> "Title"
+        #
+        # The dialog really does have separate Series and Book tabs, and the
+        # series tab really does list Authors and Title switches — every one of
+        # them is bound to the right config field, so only the labels are wrong.
+        # The Authors label matters beyond cosmetics: turning that switch off is
+        # how a provider is stopped from supplying authors, and it currently
+        # looks like a second "Age rating".
+        #
+        # Patch the submodule before either build, since komelia-ui supplies the
+        # strings for both the web UI and the extension. Idempotent, so it
+        # no-ops once upstream fixes it.
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import sys
+
+          path = "Komelia/komelia-ui/src/commonMain/composeResources/values/strings.xml"
+
+          edits = [
+              ('<string name="komf_edit_tab_series_metadata">Book metadata</string>',
+               '<string name="komf_edit_tab_series_metadata">Series metadata</string>'),
+              ('<string name="komf_providers_series_authors">Age rating</string>',
+               '<string name="komf_providers_series_authors">Authors</string>'),
+              ('<string name="komf_providers_series_title">Tags</string>',
+               '<string name="komf_providers_series_title">Title</string>'),
+          ]
+
+          with open(path) as fh:
+              source = fh.read()
+
+          if all(new in source for _, new in edits):
+              print(f"{path}: already patched, left alone")
+              sys.exit(0)
+
+          for old, new in edits:
+              count = source.count(old)
+              if count != 1:
+                  print(f"::error::Expected exactly 1 occurrence of {old!r} in "
+                        f"{path}, found {count}. Upstream may have changed it.")
+                  sys.exit(1)
+              source = source.replace(old, new)
+
+          with open(path, "w") as fh:
+              fh.write(source)
+          print(f"{path}: provider settings labels corrected")
+          PY
+
       - name: Build Komelia web UI
         # komf serves this at "/" via staticResources(basePackage = "komelia").
         # The repo has no Gradle wiring for it — upstream injects it during its
@@ -174,6 +228,183 @@ jobs:
 
           echo "Embedded $(find "$dest" -type f | wc -l) files ($(du -sh "$dest" | cut -f1))"
 
+      - name: Fix Kavita detection for Kavita 0.9.x
+        # The extension picks its media-server component from the first
+        # space-delimited word of document.title, requiring exactly "Kavita":
+        #
+        #   when (document.title.split(' ')[0]) { "Kavita" -> ... else -> Komga }
+        #
+        # Kavita 0.9.x titles pages as "<Page> (Kavita)" — e.g. "Home (Kavita)"
+        # — so the first word is "Home" and it silently falls back to the Komga
+        # component, which looks for Komga's DOM, finds nothing, and mounts no
+        # button. No error is logged, so it just appears not to work.
+        #
+        # Match "Kavita" anywhere in the title instead, leaving the Komga path
+        # untouched. Patch the checked-out submodule so the change is compiled
+        # in, and keep it idempotent so it no-ops once upstream fixes this.
+        #
+        # Also log the title and the component actually selected. Detection
+        # failures are otherwise completely silent — the content script loads
+        # and simply mounts nothing — which makes this impossible to diagnose
+        # from the outside, and makes it impossible to tell a stale install
+        # from a failing patch.
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import sys
+
+          path = "Komelia/komelia-komf-extension/content/src/wasmJsMain/kotlin/snd/komelia/AppState.kt"
+
+          edits = [
+              (
+                  "when (document.title.split(' ')[0]) {",
+                  'logger.info { "Komf: title=\\"${document.title}\\"" }\n'
+                  "        when (if (document.title.contains(\"Kavita\")) \"Kavita\" "
+                  "else document.title.split(' ')[0]) {",
+              ),
+              (
+                  "mediaServerComponent = KavitaComponent(theme, currentDialog)",
+                  "mediaServerComponent = KavitaComponent(theme, currentDialog)\n"
+                  '                logger.info { "Komf: using KavitaComponent" }',
+              ),
+              (
+                  "mediaServerComponent = KomgaComponent(theme, currentDialog)",
+                  "mediaServerComponent = KomgaComponent(theme, currentDialog)\n"
+                  '                logger.info { "Komf: using KomgaComponent" }',
+              ),
+          ]
+
+          with open(path) as fh:
+              source = fh.read()
+
+          if 'logger.info { "Komf: title=' in source:
+              print(f"{path}: already patched, left alone")
+              sys.exit(0)
+
+          for old, new in edits:
+              count = source.count(old)
+              if count != 1:
+                  print(f"::error::Expected exactly 1 occurrence of {old!r} in "
+                        f"{path}, found {count}. Upstream may have changed it; "
+                        f"re-check before assuming this patch applies.")
+                  sys.exit(1)
+              source = source.replace(old, new)
+
+          with open(path, "w") as fh:
+              fh.write(source)
+          print(f"{path}: Kavita detection fixed, media-server selection now logged")
+          PY
+
+      - name: Trace extension startup
+        # main() launches a coroutine with no error handling:
+        #
+        #   coroutineScope.launch {
+        #       val app = initApplication(coroutineScope)
+        #       app.launch()
+        #   }
+        #
+        # Anything thrown inside it — client construction, settings access,
+        # Compose setup — kills the coroutine silently. The page shows the
+        # logger init line and then nothing, which is indistinguishable from
+        # "never injected". Wrap it so failures are actually reported, and
+        # trace each stage so a partial startup is visible too.
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import sys
+
+          path = "Komelia/komelia-komf-extension/content/src/wasmJsMain/kotlin/snd/komelia/Main.kt"
+          old = ("        val app = initApplication(coroutineScope)\n"
+                 "        app.launch()")
+          new = ("        try {\n"
+                 '            logger.info { "Komf: startup begin" }\n'
+                 "            val app = initApplication(coroutineScope)\n"
+                 '            logger.info { "Komf: initApplication ok" }\n'
+                 "            app.launch()\n"
+                 '            logger.info { "Komf: launch ok" }\n'
+                 "        } catch (e: Throwable) {\n"
+                 '            logger.error(e) { "Komf: startup FAILED: ${e::class.simpleName}: ${e.message}" }\n'
+                 "        }")
+
+          with open(path) as fh:
+              source = fh.read()
+
+          if '"Komf: startup begin"' in source:
+              print(f"{path}: already patched, left alone")
+              sys.exit(0)
+
+          count = source.count(old)
+          if count != 1:
+              print(f"::error::Expected exactly 1 occurrence of the main() body in "
+                    f"{path}, found {count}. Upstream may have changed it.")
+              sys.exit(1)
+
+          with open(path, "w") as fh:
+              fh.write(source.replace(old, new))
+          print(f"{path}: startup now traced and exceptions reported")
+          PY
+
+      - name: Make navbar mounting resilient to Angular render order
+        # The content script finishes startup before Kavita's Angular app
+        # renders, so the initial tryMount(document.body) finds no <nav> and
+        # returns false. Recovery then depends on the MutationObserver, which
+        # misses it twice over:
+        #
+        #   if (node.nodeType != ELEMENT_NODE || node.childNodes.length == 0) continue
+        #   val mounted = mediaServerComponent.tryMount(node as HTMLElement)
+        #
+        #   - nodes Angular inserts empty and populates later are skipped
+        #   - tryMount searches DESCENDANTS of the added node, so when the
+        #     added node is itself the <nav>, getElementsByTagName never
+        #     matches it
+        #
+        # Whether it mounts is therefore a race against Angular. Drop the
+        # empty-node guard, and retry against document.body whenever the
+        # node-scoped attempt fails and nothing has mounted yet, so any DOM
+        # change after the navbar exists will succeed. Re-inserting the same
+        # element moves it rather than duplicating, so retrying is safe.
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import sys
+
+          path = "Komelia/komelia-komf-extension/content/src/wasmJsMain/kotlin/snd/komelia/AppState.kt"
+
+          edits = [
+              (
+                  "if (node.nodeType != Node.ELEMENT_NODE || node.childNodes.length == 0) continue",
+                  "if (node.nodeType != Node.ELEMENT_NODE) continue",
+              ),
+              (
+                  "                    val mounted = mediaServerComponent.tryMount(node as HTMLElement)\n"
+                  "                    if (mounted) mountEvent.tryEmit(Unit)",
+                  "                    val mounted = mediaServerComponent.tryMount(node as HTMLElement) ||\n"
+                  "                            (document.getElementById(\"komf-canvas\") == null &&\n"
+                  "                                    document.body?.let { mediaServerComponent.tryMount(it) } == true)\n"
+                  "                    if (mounted) mountEvent.tryEmit(Unit)",
+              ),
+          ]
+
+          with open(path) as fh:
+              source = fh.read()
+
+          if 'document.getElementById("komf-canvas") == null' in source:
+              print(f"{path}: already patched, left alone")
+              sys.exit(0)
+
+          for old, new in edits:
+              count = source.count(old)
+              if count != 1:
+                  print(f"::error::Expected exactly 1 occurrence of {old!r} in {path}, "
+                        f"found {count}. Upstream may have changed it.")
+                  sys.exit(1)
+              source = source.replace(old, new)
+
+          with open(path, "w") as fh:
+              fh.write(source)
+          print(f"{path}: navbar mounting now retries against document.body")
+          PY
+
       - name: Build browser extensions
         # The store builds are compiled against the released client and can
         # never carry this fix, so sideloadable builds are produced here. The
@@ -184,22 +415,28 @@ jobs:
             :komelia-komf-extension:app:assembleExtension_prod_firefox \
             :komelia-komf-extension:app:assembleExtension_prod_chrome
 
-      - name: Declare "scripting" as an optional permission
-        # Both manifests at the pinned Komelia list "scripting" under
-        # permissions but omit optional_permissions, while the extension
-        # requests it at runtime when an origin is granted. Browsers refuse to
-        # request a permission that is not declared optional, so granting an
-        # origin fails with:
+      - name: Declare "scripting" as an optional permission (Firefox)
+        # The manifests at the pinned Komelia list "scripting" under permissions
+        # but omit optional_permissions, while the extension requests it at
+        # runtime when an origin is granted. Firefox refuses to request a
+        # permission that is not declared optional, so granting an origin fails
+        # with:
         #   Cannot request permission scripting since it was not declared in
         #   optional_permissions
         # An earlier Komelia declared it in both places; this is a regression in
-        # the newer tree. Patch the built manifests rather than the submodule so
+        # the newer tree. Patch the built manifest rather than the submodule so
         # the fix survives a submodule bump and disappears on its own once
         # upstream restores the declaration.
         run: |
           set -euo pipefail
           patched=0
-          for browser in firefox chrome; do
+          # Firefox only. Chrome grants "scripting" at install because it is a
+          # required permission, and rejects the optional entry as redundant:
+          #   Optional permission 'scripting' is redundant with the required
+          #   permissions; this permission will be omitted.
+          # Firefox instead refuses permissions.request() for anything absent
+          # from optional_permissions, even when it is already required.
+          for browser in firefox; do
             manifest="Komelia/komelia-komf-extension/app/build/extension_prod_${browser}/manifest.json"
             if [ ! -f "$manifest" ]; then
               echo "::error::Expected $manifest but it does not exist."
