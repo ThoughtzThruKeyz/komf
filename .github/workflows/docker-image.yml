@@ -145,8 +145,11 @@ jobs:
         # looks like a second "Age rating".
         #
         # Patch the submodule before either build, since komelia-ui supplies the
-        # strings for both the web UI and the extension. Idempotent, so it
-        # no-ops once upstream fixes it.
+        # strings for both the web UI and the extension. Each edit is checked on
+        # its own, because upstream fixes these piecemeal: Komelia 65f92fde
+        # corrected the tab label but left the other two. A string already
+        # carrying its fixed text is skipped; one matching neither form fails
+        # the build, since that means upstream changed it some other way.
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -166,21 +169,25 @@ jobs:
           with open(path) as fh:
               source = fh.read()
 
-          if all(new in source for _, new in edits):
-              print(f"{path}: already patched, left alone")
-              sys.exit(0)
-
+          patched = 0
           for old, new in edits:
-              count = source.count(old)
-              if count != 1:
-                  print(f"::error::Expected exactly 1 occurrence of {old!r} in "
-                        f"{path}, found {count}. Upstream may have changed it.")
+              old_count, new_count = source.count(old), source.count(new)
+              if old_count == 0 and new_count == 1:
+                  print(f"already fixed upstream: {new}")
+              elif old_count == 1 and new_count == 0:
+                  source = source.replace(old, new)
+                  patched += 1
+                  print(f"patched: {new}")
+              else:
+                  print(f"::error::Expected exactly one of {old!r} or {new!r} in "
+                        f"{path}, found {old_count} and {new_count}. "
+                        f"Upstream may have changed it.")
                   sys.exit(1)
-              source = source.replace(old, new)
 
-          with open(path, "w") as fh:
-              fh.write(source)
-          print(f"{path}: provider settings labels corrected")
+          if patched:
+              with open(path, "w") as fh:
+                  fh.write(source)
+          print(f"{path}: {patched} of {len(edits)} labels corrected")
           PY
 
       - name: Build Komelia web UI
