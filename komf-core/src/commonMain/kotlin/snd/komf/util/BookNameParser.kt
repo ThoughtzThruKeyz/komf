@@ -11,7 +11,7 @@ object BookNameParser {
     )
 
     private val chapterRegexes = listOf(
-        "(?i)(?:^|\\s?)(c|ch\\.\\s|chapter\\s|ep\\.\\s)(?<start>[0-9]+([.x#][0-9]+)?)(?<end>-[0-9]+([.x#][0-9]+)?)?".toRegex(),
+        "(?i)((?:^|\\s)c|\\s?ch\\.\\s|\\s?chapter\\s|\\s?ep\\.\\s)(?<start>[0-9]+([.x#][0-9]+)?)(?<end>-[0-9]+([.x#][0-9]+)?)?".toRegex(),
         ".*第(?<start>\\d+(\\.\\d+)?)-?(?<end>\\d+(\\.\\d+)?)?.*話".toRegex(),
     )
     private val bookNumberRegexes = listOf(
