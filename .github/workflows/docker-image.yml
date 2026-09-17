@@ -61,7 +61,14 @@ jobs:
         # under a unique version and Komelia is pointed at it below.
         run: |
           set -euo pipefail
-          ver="1.6.2-subpath-${GITHUB_SHA::7}"
+          # Derived from the catalog so the label tracks upstream syncs; the
+          # suffix keeps it from ever matching a version on Maven Central.
+          base=$(sed -nE 's|^app-version = "([^"]+)"$|\1|p' gradle/libs.versions.toml)
+          if [ -z "$base" ]; then
+            echo "::error::Could not read app-version from gradle/libs.versions.toml."
+            exit 1
+          fi
+          ver="${base}-subpath-${GITHUB_SHA::7}"
           echo "KOMF_CLIENT_VERSION=$ver" >> "$GITHUB_ENV"
 
           # komf-client and komf-api-models both take their version from this
