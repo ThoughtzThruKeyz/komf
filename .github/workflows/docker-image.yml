@@ -197,6 +197,48 @@ jobs:
           print(f"{path}: {patched} of {len(edits)} labels corrected")
           PY
 
+      - name: Handle komf's download heartbeat in Komelia
+        # komf f9b99ad added DownloadProgress.HeartbeatEvent, which the server
+        # sends every 15 seconds while a database download or import is
+        # running, so the long-lived response is not timed out by a reverse
+        # proxy. It carries no progress. Komelia (65f92fde, and its main as of
+        # 3c5f501e) predates it, and its settings screen switches over
+        # DownloadProgress with an exhaustive when, so compiling it against
+        # this repo's komf-client fails:
+        #
+        #   KomfProvidersSettingsContent.kt: 'when' expression must be
+        #   exhaustive. Add the 'HeartbeatEvent' branch or an 'else' branch.
+        #
+        # Add a branch that ignores it. Skipped once upstream Komelia handles
+        # HeartbeatEvent anywhere in the file.
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import sys
+
+          path = "Komelia/komelia-ui/src/commonMain/kotlin/snd/komelia/ui/settings/komf/providers/KomfProvidersSettingsContent.kt"
+
+          old = "                DownloadProgress.FinishedEvent -> completed = true\n"
+          new = old + "                DownloadProgress.HeartbeatEvent -> {}\n"
+
+          with open(path) as fh:
+              source = fh.read()
+
+          if "HeartbeatEvent" in source:
+              print(f"{path}: already handles HeartbeatEvent, left alone")
+              sys.exit(0)
+
+          count = source.count(old)
+          if count != 1:
+              print(f"::error::Expected exactly 1 occurrence of {old.strip()!r} in {path}, "
+                    f"found {count}. Upstream may have changed it.")
+              sys.exit(1)
+
+          with open(path, "w") as fh:
+              fh.write(source.replace(old, new))
+          print(f"{path}: HeartbeatEvent is now ignored")
+          PY
+
       - name: Build Komelia web UI
         # komf serves this at "/" via staticResources(basePackage = "komelia").
         # The repo has no Gradle wiring for it — upstream injects it during its
