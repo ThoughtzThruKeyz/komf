@@ -8,6 +8,7 @@ import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.nullable
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonElement
 import snd.komf.mediaserver.model.MediaServerSeriesId
 
 @JvmInline
@@ -34,6 +35,19 @@ class KavitaSeries(
     val coverImageLocked: Boolean,
     val localizedNameLocked: Boolean,
     val sortNameLocked: Boolean,
+
+    // Defaulted so a Kavita version that omits them still deserializes; a
+    // required nameLocked is what got name/nameLocked removed in ca0f23b.
+    val nameLocked: Boolean = false,
+    val aniListId: Long? = null,
+    val malId: Long? = null,
+    val hardcoverId: Long? = null,
+    val metronId: Long? = null,
+    val comicVineId: String? = null,
+    val mangaBakaId: Long? = null,
+    val cbrId: Long? = null,
+    // Kept as raw JSON: it is only ever sent back unchanged.
+    val metadataProviderOverride: JsonElement? = null,
 )
 
 
