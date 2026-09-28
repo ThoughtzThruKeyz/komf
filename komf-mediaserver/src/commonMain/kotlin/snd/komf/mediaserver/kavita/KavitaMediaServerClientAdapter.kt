@@ -1,5 +1,9 @@
 package snd.komf.mediaserver.kavita
 
+import io.github.oshai.kotlinlogging.KotlinLogging
+import io.ktor.client.plugins.ClientRequestException
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpStatusCode
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.atTime
 import snd.komf.mediaserver.MediaServerClient
@@ -43,6 +47,8 @@ import snd.komf.model.SeriesStatus
 import snd.komf.model.WebLink
 import java.nio.file.Path
 import kotlin.io.path.nameWithoutExtension
+
+private val logger = KotlinLogging.logger {}
 
 class KavitaMediaServerClientAdapter(private val kavitaClient: KavitaClient) : MediaServerClient {
 
@@ -111,11 +117,14 @@ class KavitaMediaServerClientAdapter(private val kavitaClient: KavitaClient) : M
         seriesId: MediaServerSeriesId,
         metadata: MediaServerSeriesMetadataUpdate
     ) {
+        val newName = metadata.title?.name?.takeIf { it.isNotBlank() }
         val localizedName = metadata.alternativeTitles?.find { it.language != null }
-        if (metadata.titleSort != null || localizedName != null) {
+        if (newName != null || metadata.titleSort != null || localizedName != null) {
             val series = kavitaClient.getSeries(seriesId.toKavitaSeriesId())
-            kavitaClient.updateSeries(
+            updateSeriesTitles(
+                series,
                 series.toKavitaTitleUpdate(
+                    newName,
                     metadata.titleSort?.name,
                     localizedName?.name
                 )
@@ -124,6 +133,40 @@ class KavitaMediaServerClientAdapter(private val kavitaClient: KavitaClient) : M
 
         val oldMetadata = kavitaClient.getSeriesMetadata(seriesId.toKavitaSeriesId())
         kavitaClient.updateSeriesMetadata(metadata.toKavitaSeriesMetadataUpdate(oldMetadata))
+    }
+
+    // Kavita rejects (400) a name or localized name that another series in the
+    // library already uses, or whose change would split folders merged under the
+    // current name into a new series. The message does not say which field was
+    // rejected, so retry without the new name, then without the new localized
+    // name, then without either, instead of failing the whole update. Kavita
+    // validates before saving, so a rejected request changes nothing.
+    private suspend fun updateSeriesTitles(series: KavitaSeries, request: KavitaSeriesUpdateRequest) {
+        val keepName = request.copy(name = null, nameLocked = series.nameLocked)
+        val keepLocalizedName = request.copy(
+            localizedName = series.localizedName,
+            localizedNameLocked = series.localizedNameLocked
+        )
+        val keepBoth = keepName.copy(
+            localizedName = series.localizedName,
+            localizedNameLocked = series.localizedNameLocked
+        )
+        val attempts = listOf(request, keepName, keepLocalizedName, keepBoth).distinct()
+
+        for ((index, attempt) in attempts.withIndex()) {
+            try {
+                kavitaClient.updateSeries(attempt)
+                return
+            } catch (e: ClientRequestException) {
+                if (e.response.status != HttpStatusCode.BadRequest || index == attempts.lastIndex) throw e
+                val reason = e.response.bodyAsText()
+                logger.warn {
+                    "Kavita rejected titles for series ${series.id.value} " +
+                            "(name=${attempt.name}, localizedName=${attempt.localizedName}): " +
+                            "$reason; retrying with fewer changes"
+                }
+            }
+        }
     }
 
     override suspend fun deleteSeriesThumbnail(seriesId: MediaServerSeriesId, thumbnailId: MediaServerThumbnailId) {
@@ -145,7 +188,7 @@ class KavitaMediaServerClientAdapter(private val kavitaClient: KavitaClient) : M
 
     override suspend fun resetSeriesMetadata(seriesId: MediaServerSeriesId, seriesName: String) {
         val series = kavitaClient.getSeries(seriesId.toKavitaSeriesId())
-        kavitaClient.updateSeries(series.toKavitaResetRequest())
+        updateSeriesTitles(series, series.toKavitaResetRequest())
         kavitaClient.updateSeriesMetadata(kavitaSeriesResetRequest(seriesId.toKavitaSeriesId()))
     }
 
@@ -305,7 +348,7 @@ private fun KavitaSeriesMetadata.toMediaServerSeriesMetadata(series: KavitaSerie
         links = webLinks?.split(",")?.map { WebLink(it, it) } ?: emptyList(),
 
         statusLock = publicationStatusLocked,
-        titleLock = false,
+        titleLock = series.nameLocked,
         titleSortLock = series.sortNameLocked,
         summaryLock = summaryLocked,
         readingDirectionLock = false,
@@ -481,39 +524,51 @@ private fun kavitaSeriesResetRequest(seriesId: KavitaSeriesId): KavitaSeriesMeta
     return KavitaSeriesMetadataUpdateRequest(metadata)
 }
 
-private fun KavitaSeries.toKavitaTitleUpdate(newSortName: String?, newLocalizedName: String?) =
+// Every title komf writes is locked. Kavita's scanner rewrites an unlocked sort
+// name and localized name whenever it rescans the series, and on a rename it
+// derives an unlocked sort name from the new name instead of using the one sent.
+// Kavita reports these locks back as titleLock/titleSortLock, so komf will not
+// overwrite them on a later identify either; a reset unlocks them again.
+private fun KavitaSeries.toKavitaTitleUpdate(newName: String?, newSortName: String?, newLocalizedName: String?) =
     KavitaSeriesUpdateRequest(
         id = id,
+        name = newName?.trim(),
         sortName = newSortName?.trim() ?: sortName,
         localizedName = newLocalizedName?.trim() ?: localizedName,
-        sortNameLocked = sortNameLocked,
-        localizedNameLocked = localizedNameLocked,
+        nameLocked = nameLocked || newName != null,
+        sortNameLocked = sortNameLocked || newSortName != null,
+        localizedNameLocked = localizedNameLocked || newLocalizedName != null,
 
         coverImageLocked = coverImageLocked
-    )
+    ).withCurrentExternalIds(this)
 
 // Reverts what komf writes through toKavitaTitleUpdate, matching the Komga reset:
-// the sort name goes back to the series name and the localized name is cleared
-// (left null, which Kavita stores as-is).
+// the name goes back to the one Kavita's scanner parsed (originalName, which the
+// scanner still matches files by), the sort name follows it, and the localized
+// name is cleared (left null, which Kavita stores as-is).
 private fun KavitaSeries.toKavitaResetRequest() = KavitaSeriesUpdateRequest(
     id = id,
+    name = originalName,
     localizedName = null,
-    sortName = name,
+    sortName = originalName,
+    nameLocked = false,
     sortNameLocked = false,
     localizedNameLocked = false,
 
     coverImageLocked = false
-)
+).withCurrentExternalIds(this)
 
+// Only resets the cover; titles and their locks are sent back unchanged.
 private fun KavitaSeries.toKavitaCoverResetRequest() = KavitaSeriesUpdateRequest(
     id = id,
     localizedName = localizedName,
     sortName = sortName,
-    sortNameLocked = false,
-    localizedNameLocked = false,
+    nameLocked = nameLocked,
+    sortNameLocked = sortNameLocked,
+    localizedNameLocked = localizedNameLocked,
 
     coverImageLocked = false
-)
+).withCurrentExternalIds(this)
 
 private fun MediaServerBookMetadataUpdate.toKavitaChapterMetadataUpdate(currentChapter: KavitaChapter): KavitaChapterMetadataUpdateRequest {
     val authors = authors?.groupBy { it.role.lowercase() }

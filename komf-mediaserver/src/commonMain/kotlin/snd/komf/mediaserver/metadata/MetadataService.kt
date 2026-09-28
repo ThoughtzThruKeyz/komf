@@ -197,8 +197,10 @@ class MetadataService(
                 val noParensTitle = removeParentheses(seriesTitle).let { if (it == seriesTitle) null else it }
                 val searchTitles = (
                         listOfNotNull(seriesTitle, noParensTitle)
+                            .flatMap { listOfNotNull(it, collapseRepeatedTitle(it)) }
                             .plus(series.metadata.alternativeTitles.map { it.title })
                         ).filter { it.isNotBlank() }
+                    .distinct()
 
                 logger.info { "attempting to match series \"${seriesTitle}\" ${series.id}" }
 
@@ -398,6 +400,21 @@ class MetadataService(
         return name.replace("[(\\[{]([^)\\]}]+)[)\\]}]".toRegex(), "").trim()
     }
 
+    // Some releases name a series as its title twice around a dash, e.g.
+    // "All about My Best Friend - All about My Best Friend". Name matching allows
+    // only a few edits, so the repeated name never matches the real title.
+    // Returns the title once when the two sides of a whitespace-surrounded dash
+    // are equal ignoring case and spacing; dashes inside words ("Spider-Man")
+    // are not separators.
+    private fun collapseRepeatedTitle(name: String): String? {
+        fun normalize(part: String) = part.trim().replace(whitespaceRegex, " ").lowercase()
+        return repeatedTitleSeparator.findAll(name).firstNotNullOfOrNull { separator ->
+            val first = name.substring(0, separator.range.first)
+            val second = name.substring(separator.range.last + 1)
+            if (first.isNotBlank() && normalize(first) == normalize(second)) first.trim() else null
+        }
+    }
+
     private suspend fun createMatchQuery(
         searchTitle: String,
         series: MediaServerSeries,
@@ -483,3 +500,6 @@ class MetadataService(
     ) : RuntimeException(cause)
 
 }
+
+private val repeatedTitleSeparator = "\\s+[-–—]\\s+".toRegex()
+private val whitespaceRegex = "\\s+".toRegex()
