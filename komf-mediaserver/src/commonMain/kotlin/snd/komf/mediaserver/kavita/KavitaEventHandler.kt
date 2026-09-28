@@ -32,6 +32,7 @@ import kotlin.time.Clock
 import kotlin.time.Instant
 
 private val logger = KotlinLogging.logger {}
+private const val maxReportedChapters = 20_000
 
 class KavitaEventHandler(
     private val baseUrl: URLBuilder,
@@ -47,6 +48,15 @@ class KavitaEventHandler(
 
     private var lastScan: Instant = clock.now()
     private var isActive: Boolean = false
+
+    // Chapters already reported through onBooksAdded, oldest first. Kavita sends
+    // ScanProgress "started" only for single-series scans, never for library
+    // scans, so lastScan can trail by hours or days and the createdUtc filter
+    // alone lets the same chapters through again at every later scan end that
+    // follows a CoverUpdate for their volume. A reset's forced cover refresh
+    // sends one for every volume of the series. Capped, since lastScan starts
+    // at "now" on every start and older chapters never qualify again.
+    private val reportedChapters = LinkedHashSet<Int>()
 
     @Synchronized
     fun start() {
@@ -138,12 +148,16 @@ class KavitaEventHandler(
             }
         }
 
-        val newVolumes = volumes.mapNotNull { volume ->
-            val newChapters = volume.chapters
-                .filter { it.createdUtc.toInstant(TimeZone.UTC) > lastScan }
-            if (newChapters.isEmpty()) null
-            else volume to newChapters
-        }.toMap()
+        val newVolumes = lock.withLock {
+            volumes.mapNotNull { volume ->
+                val newChapters = volume.chapters
+                    .filter { it.createdUtc.toInstant(TimeZone.UTC) > lastScan }
+                    // add() is false for a chapter that was already reported
+                    .filter { reportedChapters.add(it.id.value) }
+                if (newChapters.isEmpty()) null
+                else volume to newChapters
+            }.toMap().also { trimReportedChapters() }
+        }
 
         val seriesToChaptersMap = newVolumes.keys
             .groupBy { it.seriesId }
@@ -161,6 +175,14 @@ class KavitaEventHandler(
         }
 
         eventListeners.forEach { it.onBooksAdded(bookEvents) }
+    }
+
+    private fun trimReportedChapters() {
+        val iterator = reportedChapters.iterator()
+        while (reportedChapters.size > maxReportedChapters && iterator.hasNext()) {
+            iterator.next()
+            iterator.remove()
+        }
     }
 
     private val noopEvents = listOf(
