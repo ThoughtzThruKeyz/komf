@@ -41,8 +41,42 @@ jobs:
         with:
           # Empty string falls back to the triggering ref.
           ref: ${{ github.event.inputs.ref || github.ref }}
-          # Needed to build the Komelia web UI that komf serves at "/".
-          submodules: recursive
+          # Komelia itself only; see the next step for its own submodules.
+          submodules: true
+
+      - name: Check out the Komelia submodules Gradle uses
+        # Komelia pins 25 submodules, but its Gradle build includes only a few
+        # (currently ChipTextField, compose-sonner and secret-service). The
+        # rest are native libraries for the desktop and Android apps, which the
+        # web UI and extension never compile. Cloning them recursively made
+        # every build depend on hosts outside GitHub — code.videolan.org,
+        # chromium.googlesource.com, gitlab.gnome.org, gitlab.com — and on
+        # 2026-09-24 an unreachable code.videolan.org failed the build before
+        # any code ran.
+        #
+        # The list is read from Komelia's settings.gradle.kts rather than
+        # hard-coded, so a submodule bump that adds one is picked up. Anything
+        # read there that is not a registered submodule fails the build.
+        run: |
+          set -euo pipefail
+          cd Komelia
+          subs=$(grep -vE '^[[:space:]]*//' settings.gradle.kts \
+            | grep -oE 'include\(":third_party:[A-Za-z0-9._-]+|includeBuild\("third_party/[A-Za-z0-9._-]+' \
+            | sed -E 's#^include\(":third_party:#third_party/#; s#^includeBuild\("##' \
+            | sort -u || true)
+          if [ -z "$subs" ]; then
+            echo "::error::Found no third_party projects in Komelia/settings.gradle.kts."
+            exit 1
+          fi
+          for s in $subs; do
+            if ! git config -f .gitmodules --get "submodule.$s.path" > /dev/null; then
+              echo "::error::$s is used by Gradle but is not a registered Komelia submodule."
+              exit 1
+            fi
+          done
+          echo "Checking out:" $subs
+          # shellcheck disable=SC2086
+          git submodule update --init --depth 1 -- $subs
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
