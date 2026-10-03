@@ -29,10 +29,13 @@ class DiscordWebhookService(
 ) {
     private val embedColor = embedColor.toInt(16)
 
+    /** [webhooks] replaces the configured webhooks for this call when not null. */
     suspend fun send(
         context: NotificationContext,
         templates: DiscordStringTemplates? = null,
+        webhooks: Collection<String>? = null,
     ) {
+        val webhooks = webhooks ?: this.webhooks
         if (webhooks.isEmpty()) return
 
         val webhookRequest = toRequest(context, templates) ?: return

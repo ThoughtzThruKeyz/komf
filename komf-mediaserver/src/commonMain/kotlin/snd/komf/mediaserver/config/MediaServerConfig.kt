@@ -16,6 +16,7 @@ data class KomgaConfig(
     val thumbnailSizeLimit: Long = 1048575,
     val eventListener: EventListenerConfig = EventListenerConfig(),
     val metadataUpdate: MetadataUpdateConfig = MetadataUpdateConfig(),
+    val notifications: MediaServerNotificationsConfig = MediaServerNotificationsConfig(),
 )
 
 @Serializable
@@ -24,6 +25,30 @@ data class KavitaConfig(
     val apiKey: String = "",
     val eventListener: EventListenerConfig = EventListenerConfig(enabled = false),
     val metadataUpdate: MetadataUpdateConfig = MetadataUpdateConfig(),
+    val notifications: MediaServerNotificationsConfig = MediaServerNotificationsConfig(),
+)
+
+/**
+ * Where this server's notifications go. Each list replaces the matching global
+ * one (notifications.discord.webhooks, notifications.apprise.urls) for this
+ * server only: left unset, the global list is used; set to an empty list, this
+ * server sends nothing there. Templates, embed color and cover settings stay
+ * global; templates can tell servers apart with the mediaServer variable.
+ */
+@Serializable
+data class MediaServerNotificationsConfig(
+    val discord: MediaServerDiscordTargets = MediaServerDiscordTargets(),
+    val apprise: MediaServerAppriseTargets = MediaServerAppriseTargets(),
+)
+
+@Serializable
+data class MediaServerDiscordTargets(
+    val webhooks: List<String>? = null,
+)
+
+@Serializable
+data class MediaServerAppriseTargets(
+    val urls: List<String>? = null,
 )
 
 @Serializable
