@@ -12,6 +12,7 @@ import snd.komf.api.config.KomfConfigUpdateRequest
 import snd.komf.api.config.KomgaConfigUpdateRequest
 import snd.komf.api.config.MangaBakaConfigUpdateRequest
 import snd.komf.api.config.MangaDexConfigUpdateRequest
+import snd.komf.api.config.MediaServerNotificationsUpdateRequest
 import snd.komf.api.config.MetadataPostProcessingConfigUpdateRequest
 import snd.komf.api.config.MetadataProcessingConfigUpdateRequest
 import snd.komf.api.config.MetadataProvidersConfigUpdateRequest
@@ -23,6 +24,7 @@ import snd.komf.app.config.AppConfig
 import snd.komf.mediaserver.config.EventListenerConfig
 import snd.komf.mediaserver.config.KavitaConfig
 import snd.komf.mediaserver.config.KomgaConfig
+import snd.komf.mediaserver.config.MediaServerNotificationsConfig
 import snd.komf.mediaserver.config.MetadataPostProcessingConfig
 import snd.komf.mediaserver.config.MetadataProcessingConfig
 import snd.komf.mediaserver.config.MetadataUpdateConfig
@@ -295,7 +297,31 @@ class AppConfigUpdateMapper {
             metadataUpdate = patch.metadataUpdate.getOrNull()
                 ?.let { metadataUpdate(config.metadataUpdate, it) }
                 ?: config.metadataUpdate,
+            notifications = patch.notifications.getOrNull()
+                ?.let { serverNotifications(config.notifications, it) }
+                ?: config.notifications,
         )
+    }
+
+    private fun serverNotifications(
+        config: MediaServerNotificationsConfig,
+        patch: MediaServerNotificationsUpdateRequest
+    ): MediaServerNotificationsConfig {
+        return config.copy(
+            discord = config.discord.copy(webhooks = serverTargets(config.discord.webhooks, patch.discordWebhooks)),
+            apprise = config.apprise.copy(urls = serverTargets(config.apprise.urls, patch.appriseUrls)),
+        )
+    }
+
+    // Unlike the global lists, None resets a server's list to null so the global
+    // list is used again, and editing a list that is not set starts from empty.
+    private fun serverTargets(current: List<String>?, patch: PatchValue<Map<Int, String?>>): List<String>? {
+        return when (patch) {
+            PatchValue.Unset -> current
+            PatchValue.None -> null
+            is PatchValue.Some -> ((current ?: emptyList()).mapIndexed { index, value -> index to value }.toMap()
+                    + patch.value).values.filterNotNull()
+        }
     }
 
     private fun kavitaConfig(config: KavitaConfig, patch: KavitaConfigUpdateRequest): KavitaConfig {
@@ -308,6 +334,9 @@ class AppConfigUpdateMapper {
             metadataUpdate = patch.metadataUpdate.getOrNull()
                 ?.let { metadataUpdate(config.metadataUpdate, it) }
                 ?: config.metadataUpdate,
+            notifications = patch.notifications.getOrNull()
+                ?.let { serverNotifications(config.notifications, it) }
+                ?: config.notifications,
         )
     }
 
