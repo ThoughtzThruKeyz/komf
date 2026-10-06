@@ -29,7 +29,10 @@ class NotificationsEventHandler(
     private val appriseService: AppriseCliService,
     private val discordWebhookService: DiscordWebhookService,
     private val libraryFilter: Predicate<String>,
-    private val mediaServer: MediaServer
+    private val mediaServer: MediaServer,
+    // This server's targets; null falls back to the services' global ones.
+    private val discordWebhooks: Collection<String>? = null,
+    private val appriseUrls: Collection<String>? = null,
 ) : MediaServerEventListener {
 
     override suspend fun onBooksAdded(events: List<BookEvent>) {
@@ -41,8 +44,8 @@ class NotificationsEventHandler(
                     bookIds = events.map { it.bookId },
                 )
             }.forEach { context ->
-                runCatching { discordWebhookService.send(context) }.onFailure { logger.catching(it) }
-                runCatching { appriseService.send(context) }.onFailure { logger.catching(it) }
+                runCatching { discordWebhookService.send(context, webhooks = discordWebhooks) }.onFailure { logger.catching(it) }
+                runCatching { appriseService.send(context, urls = appriseUrls) }.onFailure { logger.catching(it) }
             }
     }
 

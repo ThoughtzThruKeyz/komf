@@ -146,7 +146,9 @@ class MediaServerModule(
                 if (libraries.isEmpty()) true
                 else libraries.contains(it)
             },
-            mediaServer = MediaServer.KOMGA
+            mediaServer = MediaServer.KOMGA,
+            discordWebhooks = komgaConfig.notifications.discord.webhooks,
+            appriseUrls = komgaConfig.notifications.apprise.urls,
         )
 
         komgaEventHandler = KomgaEventHandler(
@@ -218,7 +220,9 @@ class MediaServerModule(
                 if (libraries.isEmpty()) true
                 else libraries.contains(it)
             },
-            mediaServer = MediaServer.KAVITA
+            mediaServer = MediaServer.KAVITA,
+            discordWebhooks = kavitaConfig.notifications.discord.webhooks,
+            appriseUrls = kavitaConfig.notifications.apprise.urls,
         )
 
         kavitaEventHandler = KavitaEventHandler(

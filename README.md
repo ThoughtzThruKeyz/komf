@@ -96,6 +96,11 @@ komga:
     metadataLibraryFilter: [ ]  # listen to all events if empty
     metadataSeriesExcludeFilter: [ ]
     notificationsLibraryFilter: [ ] # Will send notifications if any notification source is enabled. If empty will send notifications for all libraries
+  notifications: # optional per-server targets. Each list replaces the global one under `notifications` for this server only
+    discord:
+      webhooks: # unset: use notifications.discord.webhooks. Empty list [ ]: no discord notifications for this server
+    apprise:
+      urls: # unset: use notifications.apprise.urls. Empty list [ ]: no apprise notifications for this server
   metadataUpdate:
     default:
       libraryType: "MANGA" # Can be "MANGA", "NOVEL", "COMIC" or "WEBTOON". Hint to help better match book numbers
@@ -135,6 +140,11 @@ kavita:
     metadataLibraryFilter: [ ]  # listen to all events if empty
     metadataSeriesExcludeFilter: [ ]
     notificationsLibraryFilter: [ ] # Will send notifications if any notification source is enabled. If empty will send notifications for all libraries
+  notifications: # optional per-server targets. Each list replaces the global one under `notifications` for this server only
+    discord:
+      webhooks: # unset: use notifications.discord.webhooks. Empty list [ ]: no discord notifications for this server
+    apprise:
+      urls: # unset: use notifications.apprise.urls. Empty list [ ]: no apprise notifications for this server
   metadataUpdate:
     default:
       libraryType: "MANGA" # Can be "MANGA", "NOVEL", "COMIC" or "WEBTOON". Hint to help better match book numbers

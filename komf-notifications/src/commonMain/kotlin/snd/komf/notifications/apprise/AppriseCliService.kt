@@ -20,10 +20,13 @@ class AppriseCliService(
 ) {
     private val tikaConfig = TikaConfig.getDefaultConfig()
 
+    /** [urls] replaces the configured urls for this call when not null. */
     fun send(
         context: NotificationContext,
         templates: AppriseStringTemplates? = null,
+        urls: Collection<String>? = null,
     ) {
+        val urls = urls ?: this.urls
         var coverAttachment: Path? = null
         try {
             if (urls.isEmpty()) return
