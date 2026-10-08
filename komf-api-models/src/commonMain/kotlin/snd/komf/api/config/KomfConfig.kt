@@ -24,6 +24,7 @@ data class KomgaConfigDto(
     val komgaUser: String,
     val eventListener: EventListenerConfigDto,
     val metadataUpdate: MetadataUpdateConfigDto,
+    val notifications: MediaServerNotificationsConfigDto = MediaServerNotificationsConfigDto(),
 )
 
 @Serializable
@@ -31,6 +32,7 @@ data class KavitaConfigDto(
     val baseUri: String,
     val eventListener: EventListenerConfigDto,
     val metadataUpdate: MetadataUpdateConfigDto,
+    val notifications: MediaServerNotificationsConfigDto = MediaServerNotificationsConfigDto(),
 )
 
 @Serializable
@@ -257,4 +259,11 @@ data class DiscordConfigDto(
 data class AppriseConfigDto(
     val urls: List<String>?,
     val seriesCover: Boolean,
+)
+
+/** A server's own notification targets; null means the global list is used. */
+@Serializable
+data class MediaServerNotificationsConfigDto(
+    val discordWebhooks: List<String>? = null,
+    val appriseUrls: List<String>? = null,
 )

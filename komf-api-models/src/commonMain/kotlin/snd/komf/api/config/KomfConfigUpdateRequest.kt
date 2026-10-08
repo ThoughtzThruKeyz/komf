@@ -25,6 +25,7 @@ data class KomgaConfigUpdateRequest(
     val komgaPassword: PatchValue<String> = PatchValue.Unset,
     val eventListener: PatchValue<EventListenerConfigUpdateRequest> = PatchValue.Unset,
     val metadataUpdate: PatchValue<MetadataUpdateConfigUpdateRequest> = PatchValue.Unset,
+    val notifications: PatchValue<MediaServerNotificationsUpdateRequest> = PatchValue.Unset,
 )
 
 @Serializable
@@ -33,6 +34,7 @@ data class KavitaConfigUpdateRequest(
     val apiKey: PatchValue<String> = PatchValue.Unset,
     val eventListener: PatchValue<EventListenerConfigUpdateRequest> = PatchValue.Unset,
     val metadataUpdate: PatchValue<MetadataUpdateConfigUpdateRequest> = PatchValue.Unset,
+    val notifications: PatchValue<MediaServerNotificationsUpdateRequest> = PatchValue.Unset,
 )
 
 @Serializable
@@ -231,4 +233,16 @@ class DiscordConfigUpdateRequest(
 class AppriseConfigUpdateRequest(
     val urls: PatchValue<Map<Int, String?>> = PatchValue.Unset,
     val seriesCover: PatchValue<Boolean> = PatchValue.Unset,
+)
+
+/**
+ * A server's own notification targets. Some(map) edits entries by index, like
+ * the global lists, starting from an empty list when none is set, so
+ * Some(emptyMap()) sets an empty list (nothing sent for that server). None
+ * removes the list so the global one is used again.
+ */
+@Serializable
+data class MediaServerNotificationsUpdateRequest(
+    val discordWebhooks: PatchValue<Map<Int, String?>> = PatchValue.Unset,
+    val appriseUrls: PatchValue<Map<Int, String?>> = PatchValue.Unset,
 )

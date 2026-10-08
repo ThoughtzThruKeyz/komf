@@ -13,6 +13,7 @@ import snd.komf.api.config.KomgaConfigDto
 import snd.komf.api.config.MangaBakaConfigDto
 import snd.komf.api.config.MangaBakaDatabaseDto
 import snd.komf.api.config.MangaDexConfigDto
+import snd.komf.api.config.MediaServerNotificationsConfigDto
 import snd.komf.api.config.MetadataPostProcessingConfigDto
 import snd.komf.api.config.MetadataProcessingConfigDto
 import snd.komf.api.config.MetadataProvidersConfigDto
@@ -27,6 +28,7 @@ import snd.komf.mangabaka.model.MangaBakaImportMetadata
 import snd.komf.mediaserver.config.EventListenerConfig
 import snd.komf.mediaserver.config.KavitaConfig
 import snd.komf.mediaserver.config.KomgaConfig
+import snd.komf.mediaserver.config.MediaServerNotificationsConfig
 import snd.komf.mediaserver.config.MetadataPostProcessingConfig
 import snd.komf.mediaserver.config.MetadataProcessingConfig
 import snd.komf.mediaserver.config.MetadataUpdateConfig
@@ -69,6 +71,7 @@ class AppConfigMapper {
             komgaUser = config.komgaUser,
             eventListener = toDto(config.eventListener),
             metadataUpdate = toDto(config.metadataUpdate),
+            notifications = toDto(config.notifications),
         )
     }
 
@@ -77,6 +80,14 @@ class AppConfigMapper {
             baseUri = config.baseUri,
             eventListener = toDto(config.eventListener),
             metadataUpdate = toDto(config.metadataUpdate),
+            notifications = toDto(config.notifications),
+        )
+    }
+
+    private fun toDto(config: MediaServerNotificationsConfig): MediaServerNotificationsConfigDto {
+        return MediaServerNotificationsConfigDto(
+            discordWebhooks = config.discord.webhooks,
+            appriseUrls = config.apprise.urls,
         )
     }
 
