@@ -60,6 +60,7 @@ enum class KomfCoreProviders : KomfProviders {
     ANILIST,
     MAL,
     COMIC_VINE,
+    METRON,
 
     @Deprecated("to be removed")
     BANGUMI,

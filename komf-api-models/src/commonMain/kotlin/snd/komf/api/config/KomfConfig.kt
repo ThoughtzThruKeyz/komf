@@ -94,6 +94,7 @@ data class MetadataProvidersConfigDto(
     val comicVineSearchLimit: Int?,
     val comicVineIssueName: String?,
     val comicVineIdFormat: String?,
+    val metronApiKey: String? = null,
     val nameMatchingMode: KomfNameMatchingMode,
     val defaultProviders: ProvidersConfigDto,
     val libraryProviders: Map<String, ProvidersConfigDto>,
@@ -116,6 +117,7 @@ data class ProvidersConfigDto(
     val aniList: AniListConfigDto,
     val mal: ProviderConfigDto,
     val comicVine: ProviderConfigDto,
+    val metron: ProviderConfigDto? = null,
 
     @Deprecated("to be removed")
     val nautiljon: ProviderConfigDto,

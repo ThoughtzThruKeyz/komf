@@ -1,0 +1,133 @@
+package snd.komf.providers.metron
+
+import io.github.oshai.kotlinlogging.KotlinLogging
+import io.github.reactivecircus.cache4k.Cache
+import io.ktor.client.plugins.ClientRequestException
+import io.ktor.http.HttpStatusCode
+import snd.komf.model.BookQualifier
+import snd.komf.model.Image
+import snd.komf.model.MatchQuery
+import snd.komf.model.ProviderBookId
+import snd.komf.model.ProviderBookMetadata
+import snd.komf.model.ProviderSeriesId
+import snd.komf.model.ProviderSeriesMetadata
+import snd.komf.model.SeriesSearchResult
+import snd.komf.providers.CoreProviders.METRON
+import snd.komf.providers.MetadataProvider
+import snd.komf.providers.metron.model.MetronArcId
+import snd.komf.providers.metron.model.MetronIssueId
+import snd.komf.providers.metron.model.MetronSeriesId
+import snd.komf.providers.metron.model.MetronSeriesListItem
+import snd.komf.providers.metron.model.toMetronIssueId
+import snd.komf.providers.metron.model.toMetronSeriesId
+import snd.komf.util.NameSimilarityMatcher
+import snd.komf.util.compareImages
+import kotlin.math.floor
+import kotlin.time.Duration.Companion.minutes
+
+private val logger = KotlinLogging.logger {}
+
+class MetronMetadataProvider(
+    private val client: MetronClient,
+    private val mapper: MetronMetadataMapper,
+    private val nameMatcher: NameSimilarityMatcher,
+    private val fetchSeriesCovers: Boolean,
+    private val fetchBookCovers: Boolean,
+) : MetadataProvider {
+    // Issues of one series usually share arcs, so each arc's issue list is fetched once per update
+    private val arcIssuesCache = Cache.Builder<MetronArcId, List<MetronIssueId>>()
+        .expireAfterWrite(30.minutes)
+        .build()
+    private val startYearRegex = "\\((?<startYear>\\d{4})(-\\d{4})?\\)".toRegex()
+    private val displayYearRegex = "\\s\\(\\d{4}\\)$".toRegex()
+
+    override fun providerName() = METRON
+
+    override suspend fun getSeriesMetadata(seriesId: ProviderSeriesId): ProviderSeriesMetadata {
+        val metronSeriesId = seriesId.toMetronSeriesId()
+        val series = client.getSeries(metronSeriesId)
+        val issues = client.getSeriesIssues(metronSeriesId)
+        val cover = if (fetchSeriesCovers) issues.firstNotNullOfOrNull { it.image }?.let { getCover(it) } else null
+        return mapper.toSeriesMetadata(series, issues, cover)
+    }
+
+    override suspend fun getSeriesCover(seriesId: ProviderSeriesId): Image? {
+        // Metron has no series image, the first issue's cover stands in for it
+        return client.getSeriesIssues(seriesId.toMetronSeriesId(), firstPageOnly = true)
+            .firstNotNullOfOrNull { it.image }
+            ?.let { getCover(it) }
+    }
+
+    override suspend fun getBookMetadata(seriesId: ProviderSeriesId, bookId: ProviderBookId): ProviderBookMetadata {
+        val issue = client.getIssue(bookId.toMetronIssueId())
+        val storyArcs = issue.arcs.map { arc ->
+            arc.name to arcIssuesCache.get(arc.id) { client.getArcIssues(arc.id).map { it.id } }
+        }
+        val cover = if (fetchBookCovers) issue.image?.let { getCover(it) } else null
+        return mapper.toBookMetadata(issue, storyArcs, cover)
+    }
+
+    override suspend fun searchSeries(seriesName: String, limit: Int): Collection<SeriesSearchResult> {
+        return client.searchSeries(seriesName.take(400))
+            .take(limit)
+            .map { mapper.toSeriesSearchResult(it) }
+    }
+
+    override suspend fun matchSeriesMetadata(matchQuery: MatchQuery): ProviderSeriesMetadata? {
+        val seriesName = removeParentheses(matchQuery.seriesName)
+        if (seriesName.isBlank()) return null
+
+        val results = client.searchSeries(seriesName.take(400))
+            .filter { resultMatchFilter(matchQuery, it) }
+
+        val match = if (results.size > 1) {
+            logger.info { "Multiple series matches: ${results.joinToString { "\"${it.displayName}\" id=${it.id}" }}" }
+            if (matchQuery.bookQualifier == null) return null
+
+            logger.info { "Attempting to match using cover of book number: ${matchQuery.bookQualifier.number} name: \"${matchQuery.bookQualifier.name}\"" }
+            results.firstOrNull { matchesBookCover(it.id, matchQuery.bookQualifier) }
+        } else results.firstOrNull()
+
+        return match?.let { getSeriesMetadata(ProviderSeriesId(it.id.toString())) }
+    }
+
+    private suspend fun matchesBookCover(seriesId: MetronSeriesId, qualifier: BookQualifier): Boolean {
+        val qualifierImage = qualifier.cover ?: return false
+        val start = qualifier.number.start
+        val number = if (floor(start) == start) start.toInt().toString() else start.toString()
+
+        val issueImage = client.findIssues(seriesId, number).firstNotNullOfOrNull { it.image } ?: return false
+        logger.info { "matching cover of issue #$number of Metron series $seriesId" }
+        val issueCover = getCover(issueImage) ?: return false
+        return compareImages(qualifierImage.bytes, issueCover.bytes)
+    }
+
+    private fun extractYear(seriesName: String): Int? {
+        return startYearRegex.find(seriesName)?.groups?.get("startYear")?.value?.toIntOrNull()
+    }
+
+    private fun removeParentheses(seriesName: String): String {
+        return seriesName.replace("[(\\[{]([^)\\]}]+)[)\\]}]".toRegex(), "").trim()
+    }
+
+    private fun resultMatchFilter(matchQuery: MatchQuery, result: MetronSeriesListItem): Boolean {
+        val startYear = matchQuery.startYear ?: extractYear(matchQuery.seriesName)
+        val seriesName = removeParentheses(matchQuery.seriesName)
+        val resultName = result.displayName.replace(displayYearRegex, "")
+
+        if (!nameMatcher.matches(seriesName, resultName)) return false
+        if (startYear == null || result.yearBegan == null) return true
+        return startYear == result.yearBegan
+    }
+
+    private suspend fun getCover(url: String): Image? {
+        return try {
+            client.getCover(url)
+        } catch (e: ClientRequestException) {
+            if (e.response.status == HttpStatusCode.NotFound) {
+                logger.error { "Entry has cover url but there was no image. Skipping cover retrieval \"$url\"" }
+                null
+            } else throw e
+        }
+    }
+}
