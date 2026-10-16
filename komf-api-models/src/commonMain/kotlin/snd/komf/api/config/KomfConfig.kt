@@ -47,6 +47,7 @@ data class MetadataProcessingConfigDto(
     val aggregate: Boolean,
     val mergeTags: Boolean,
     val mergeGenres: Boolean,
+    val preferLongerSummary: Boolean = false,
     val bookCovers: Boolean,
     val seriesCovers: Boolean,
     val overrideExistingCovers: Boolean,

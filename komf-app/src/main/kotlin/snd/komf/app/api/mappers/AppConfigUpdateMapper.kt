@@ -411,6 +411,7 @@ class AppConfigUpdateMapper {
             aggregate = patch.aggregate.getOrNull() ?: config.aggregate,
             mergeTags = patch.mergeTags.getOrNull() ?: config.mergeTags,
             mergeGenres = patch.mergeGenres.getOrNull() ?: config.mergeGenres,
+            preferLongerSummary = patch.preferLongerSummary.getOrNull() ?: config.preferLongerSummary,
             bookCovers = patch.bookCovers.getOrNull() ?: config.bookCovers,
             seriesCovers = patch.seriesCovers.getOrNull() ?: config.seriesCovers,
             overrideExistingCovers = patch.overrideExistingCovers.getOrNull() ?: config.overrideExistingCovers,

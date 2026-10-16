@@ -113,6 +113,7 @@ class AppConfigMapper {
             aggregate = config.aggregate,
             mergeTags = config.mergeTags,
             mergeGenres = config.mergeGenres,
+            preferLongerSummary = config.preferLongerSummary,
             bookCovers = config.bookCovers,
             seriesCovers = config.seriesCovers,
             overrideExistingCovers = config.overrideExistingCovers,

@@ -49,6 +49,7 @@ data class MetadataProcessingConfigUpdateRequest(
     val aggregate: PatchValue<Boolean> = PatchValue.Unset,
     val mergeTags: PatchValue<Boolean> = PatchValue.Unset,
     val mergeGenres: PatchValue<Boolean> = PatchValue.Unset,
+    val preferLongerSummary: PatchValue<Boolean> = PatchValue.Unset,
 
     val bookCovers: PatchValue<Boolean> = PatchValue.Unset,
     val seriesCovers: PatchValue<Boolean> = PatchValue.Unset,

@@ -307,7 +307,11 @@ class MediaServerModule(
             aggregateMetadata = config.aggregate,
             metadataUpdateService = metadataUpdateService,
             seriesMatchRepository = seriesMatchRepository,
-            metadataMerger = MetadataMerger(mergeTags = config.mergeTags, mergeGenres = config.mergeGenres),
+            metadataMerger = MetadataMerger(
+                mergeTags = config.mergeTags,
+                mergeGenres = config.mergeGenres,
+                preferLongerSummary = config.preferLongerSummary,
+            ),
             libraryType = config.libraryType,
             jobTracker = jobTracker,
         )

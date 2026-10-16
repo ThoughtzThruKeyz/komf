@@ -108,6 +108,7 @@ komga:
       aggregate: false # if enabled will search and aggregate metadata from all configured providers
       mergeTags: false # if true and aggregate is enabled will merge tags from all providers
       mergeGenres: false # if true and aggregate is enabled will merge genres from all providers
+      preferLongerSummary: false # if true and aggregate is enabled will keep the series and book summaries with the most words instead of the first matched provider's
       bookCovers: false # update book thumbnails
       seriesCovers: false # update series thumbnails
       overrideExistingCovers: true # if false will upload but not select new cover if another cover already exists
@@ -152,6 +153,7 @@ kavita:
       aggregate: false # if enabled will search and aggregate metadata from all configured providers
       mergeTags: false # if true and aggregate is enabled will merge tags from all providers
       mergeGenres: false # if true and aggregate is enabled will merge genres from all providers
+      preferLongerSummary: false # if true and aggregate is enabled will keep the series and book summaries with the most words instead of the first matched provider's
       bookCovers: false #update book thumbnails
       seriesCovers: false #update series thumbnails
       overrideExistingCovers: true # if false will upload but not select new cover if another cover already exists
