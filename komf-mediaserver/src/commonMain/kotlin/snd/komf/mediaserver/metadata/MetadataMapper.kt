@@ -38,6 +38,8 @@ class MetadataMapper {
                 releaseDate = getIfNotLockedOrEmpty(bookMetadata?.releaseDate, releaseDateLock),
                 authors = getIfNotLockedOrEmpty(authors, authorsLock),
                 tags = getIfNotLockedOrEmpty(bookMetadata?.tags?.toList(), tagsLock),
+                characters = getIfNotLockedOrEmpty(bookMetadata?.characters, charactersLock),
+                teams = getIfNotLockedOrEmpty(bookMetadata?.teams, teamsLock),
                 isbn = getIfNotLockedOrEmpty(bookMetadata?.isbn, isbnLock),
                 links = getIfNotLockedOrEmpty(bookMetadata?.links, linksLock),
 
@@ -74,6 +76,8 @@ class MetadataMapper {
                 language = getIfNotLockedOrEmpty(patch.language, languageLock),
                 genres = getIfNotLockedOrEmpty(patch.genres.toList(), genresLock),
                 tags = getIfNotLockedOrEmpty(patch.tags.toList(), tagsLock),
+                characters = getIfNotLockedOrEmpty(patch.characters, charactersLock),
+                teams = getIfNotLockedOrEmpty(patch.teams, teamsLock),
                 totalBookCount = getIfNotLockedOrEmpty(patch.totalBookCount, totalBookCountLock),
                 authors = getIfNotLockedOrEmpty(authors, authorsLock),
                 releaseYear = getIfNotLockedOrEmpty(patch.releaseDate?.year, releaseYearLock),
@@ -122,6 +126,8 @@ class MetadataMapper {
             publisher = seriesMetadata?.publisher?.name,
             genre = seriesMetadata?.genres?.ifEmpty { null }?.joinToString(","),
             tags = bookMetadata?.tags?.ifEmpty { null }?.joinToString(","),
+            characters = bookMetadata?.characters?.ifEmpty { null }?.joinToString(","),
+            teams = bookMetadata?.teams?.ifEmpty { null }?.joinToString(","),
             ageRating = seriesMetadata?.ageRating
                 ?.let { metadataRating ->
                     (AgeRating.entries

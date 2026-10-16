@@ -49,6 +49,7 @@ data class MetadataProcessingConfigUpdateRequest(
     val aggregate: PatchValue<Boolean> = PatchValue.Unset,
     val mergeTags: PatchValue<Boolean> = PatchValue.Unset,
     val mergeGenres: PatchValue<Boolean> = PatchValue.Unset,
+    val preferLongerSummary: PatchValue<Boolean> = PatchValue.Unset,
 
     val bookCovers: PatchValue<Boolean> = PatchValue.Unset,
     val seriesCovers: PatchValue<Boolean> = PatchValue.Unset,
@@ -91,6 +92,7 @@ class MetadataProvidersConfigUpdateRequest(
     val comicVineSearchLimit: PatchValue<Int> = PatchValue.Unset,
     val comicVineIssueName: PatchValue<String> = PatchValue.Unset,
     val comicVineIdFormat: PatchValue<String> = PatchValue.Unset,
+    val metronApiKey: PatchValue<String> = PatchValue.Unset,
     val malClientId: PatchValue<String> = PatchValue.Unset,
     val nameMatchingMode: PatchValue<KomfNameMatchingMode> = PatchValue.Unset,
     val defaultProviders: PatchValue<ProvidersConfigUpdateRequest> = PatchValue.Unset,
@@ -106,6 +108,7 @@ data class ProvidersConfigUpdateRequest(
     val aniList: PatchValue<AniListConfigUpdateRequest> = PatchValue.Unset,
     val mal: PatchValue<ProviderConfigUpdateRequest> = PatchValue.Unset,
     val comicVine: PatchValue<ProviderConfigUpdateRequest> = PatchValue.Unset,
+    val metron: PatchValue<ProviderConfigUpdateRequest> = PatchValue.Unset,
 
     @Deprecated("to be removed")
     val nautiljon: PatchValue<ProviderConfigUpdateRequest> = PatchValue.Unset,
@@ -215,6 +218,8 @@ data class BookMetadataConfigUpdateRequest(
     val isbn: PatchValue<Boolean> = PatchValue.Unset,
     val links: PatchValue<Boolean> = PatchValue.Unset,
     val thumbnail: PatchValue<Boolean> = PatchValue.Unset,
+    val characters: PatchValue<Boolean> = PatchValue.Unset,
+    val teams: PatchValue<Boolean> = PatchValue.Unset,
 )
 
 @Serializable

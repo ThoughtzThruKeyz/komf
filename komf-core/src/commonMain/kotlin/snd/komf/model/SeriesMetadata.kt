@@ -3,6 +3,7 @@ package snd.komf.model
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.number
 import kotlinx.serialization.Serializable
+import snd.komf.providers.CoreProviders
 import kotlin.jvm.JvmInline
 
 @JvmInline
@@ -26,6 +27,8 @@ data class SeriesMetadata(
     val tags: Collection<String> = emptyList(),
     val totalBookCount: Int? = null,
     val authors: List<Author> = emptyList(),
+    val characters: Collection<String> = emptyList(),
+    val teams: Collection<String> = emptyList(),
     val releaseDate: ReleaseDate? = null,
     val links: Collection<WebLink> = emptyList(),
     val score: Double? = null,
@@ -45,6 +48,8 @@ data class ProviderSeriesMetadata(
     val id: ProviderSeriesId,
     val metadata: SeriesMetadata,
     val books: List<SeriesBook> = emptyList(),
+    // the same series' ids on other providers, when this provider records them
+    val externalIds: Map<CoreProviders, ProviderSeriesId> = emptyMap(),
 )
 
 @Serializable

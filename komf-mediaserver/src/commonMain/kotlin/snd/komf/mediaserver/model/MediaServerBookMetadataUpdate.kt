@@ -11,6 +11,8 @@ data class MediaServerBookMetadataUpdate(
     val releaseDate: LocalDate? = null,
     val authors: List<MediaServerAuthor>? = null,
     val tags: List<String>? = null,
+    val characters: Collection<String>? = null,
+    val teams: Collection<String>? = null,
     val isbn: String? = null,
     val links: Collection<WebLink>? = null,
 

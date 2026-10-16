@@ -47,6 +47,7 @@ data class MetadataProcessingConfigDto(
     val aggregate: Boolean,
     val mergeTags: Boolean,
     val mergeGenres: Boolean,
+    val preferLongerSummary: Boolean = false,
     val bookCovers: Boolean,
     val seriesCovers: Boolean,
     val overrideExistingCovers: Boolean,
@@ -94,6 +95,7 @@ data class MetadataProvidersConfigDto(
     val comicVineSearchLimit: Int?,
     val comicVineIssueName: String?,
     val comicVineIdFormat: String?,
+    val metronApiKey: String? = null,
     val nameMatchingMode: KomfNameMatchingMode,
     val defaultProviders: ProvidersConfigDto,
     val libraryProviders: Map<String, ProvidersConfigDto>,
@@ -116,6 +118,7 @@ data class ProvidersConfigDto(
     val aniList: AniListConfigDto,
     val mal: ProviderConfigDto,
     val comicVine: ProviderConfigDto,
+    val metron: ProviderConfigDto? = null,
 
     @Deprecated("to be removed")
     val nautiljon: ProviderConfigDto,
@@ -241,6 +244,8 @@ data class BookMetadataConfigDto(
     val isbn: Boolean,
     val links: Boolean,
     val thumbnail: Boolean,
+    val characters: Boolean = true,
+    val teams: Boolean = true,
 )
 
 @Serializable

@@ -92,6 +92,11 @@ class AppConfigUpdateMapper {
                 is PatchValue.Some -> idFormat.value
                 PatchValue.Unset -> config.comicVineIdFormat
             },
+            metronApiKey = when (val apiKey = patch.metronApiKey) {
+                PatchValue.None -> null
+                is PatchValue.Some -> apiKey.value
+                PatchValue.Unset -> config.metronApiKey
+            },
             nameMatchingMode = when (patch.nameMatchingMode.getOrNull()) {
                 KomfNameMatchingMode.EXACT -> NameMatchingMode.EXACT
                 KomfNameMatchingMode.CLOSEST_MATCH -> NameMatchingMode.CLOSEST_MATCH
@@ -149,6 +154,8 @@ class AppConfigUpdateMapper {
                 ?.let { providerConfig(config.bangumi, it) } ?: config.bangumi,
             comicVine = patch.comicVine.getOrNull()
                 ?.let { providerConfig(config.comicVine, it) } ?: config.comicVine,
+            metron = patch.metron.getOrNull()
+                ?.let { providerConfig(config.metron, it) } ?: config.metron,
             mangaBaka = patch.mangaBaka.getOrNull()
                 ?.let { mangaBakaProviderConfig(config.mangaBaka, it) } ?: config.mangaBaka,
             webtoons = patch.webtoons.getOrNull()
@@ -282,7 +289,9 @@ class AppConfigUpdateMapper {
             tags = patch.tags.getOrNull() ?: config.tags,
             isbn = patch.isbn.getOrNull() ?: config.isbn,
             links = patch.links.getOrNull() ?: config.links,
-            thumbnail = patch.thumbnail.getOrNull() ?: config.thumbnail
+            thumbnail = patch.thumbnail.getOrNull() ?: config.thumbnail,
+            characters = patch.characters.getOrNull() ?: config.characters,
+            teams = patch.teams.getOrNull() ?: config.teams
         )
     }
 
@@ -404,6 +413,7 @@ class AppConfigUpdateMapper {
             aggregate = patch.aggregate.getOrNull() ?: config.aggregate,
             mergeTags = patch.mergeTags.getOrNull() ?: config.mergeTags,
             mergeGenres = patch.mergeGenres.getOrNull() ?: config.mergeGenres,
+            preferLongerSummary = patch.preferLongerSummary.getOrNull() ?: config.preferLongerSummary,
             bookCovers = patch.bookCovers.getOrNull() ?: config.bookCovers,
             seriesCovers = patch.seriesCovers.getOrNull() ?: config.seriesCovers,
             overrideExistingCovers = patch.overrideExistingCovers.getOrNull() ?: config.overrideExistingCovers,

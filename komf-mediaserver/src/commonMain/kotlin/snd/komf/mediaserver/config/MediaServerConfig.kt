@@ -71,6 +71,8 @@ data class MetadataProcessingConfig(
     val aggregate: Boolean = false,
     val mergeTags: Boolean = false,
     val mergeGenres: Boolean = false,
+    // when aggregating, keep the summary with the most words instead of the first matched provider's
+    val preferLongerSummary: Boolean = false,
 
     val bookCovers: Boolean = false,
     val seriesCovers: Boolean = false,

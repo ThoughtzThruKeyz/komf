@@ -108,6 +108,8 @@ class ComicVineMetadataMapper(
             numberSort = issue.issueNumber?.toDoubleOrNull(),
             releaseDate = (issue.storeDate ?: issue.coverDate)?.let { LocalDate.parse(it) },
             authors = getAuthors(issue),
+            characters = issue.characterCredits?.map { it.name }?.toSet() ?: emptySet(),
+            teams = issue.teamCredits?.map { it.name }?.toSet() ?: emptySet(),
             links = listOf(WebLink("ComicVine", issue.siteDetailUrl)),
             storyArcs = storyArcs.map { arc ->
                 val index = arc.issues.indexOfFirst { it.id == issue.id }

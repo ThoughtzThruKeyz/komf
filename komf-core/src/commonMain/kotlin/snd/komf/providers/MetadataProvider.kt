@@ -20,5 +20,8 @@ interface MetadataProvider {
     suspend fun searchSeries(seriesName: String, limit: Int = 20): Collection<SeriesSearchResult>
 
     suspend fun matchSeriesMetadata(matchQuery: MatchQuery): ProviderSeriesMetadata?
+
+    // this provider's id for a series known by its id on another provider, for providers that record those
+    suspend fun findSeriesId(provider: CoreProviders, seriesId: ProviderSeriesId): ProviderSeriesId? = null
 }
 

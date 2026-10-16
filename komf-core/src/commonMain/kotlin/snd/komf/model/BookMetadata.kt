@@ -18,6 +18,8 @@ data class BookMetadata(
     val releaseDate: LocalDate? = null,
     val authors: List<Author> = emptyList(),
     val tags: Set<String> = emptySet(),
+    val characters: Set<String> = emptySet(),
+    val teams: Set<String> = emptySet(),
     val isbn: String? = null,
     val links: List<WebLink> = emptyList(),
     val chapters: Collection<Chapter> = emptyList(),

@@ -113,6 +113,7 @@ class AppConfigMapper {
             aggregate = config.aggregate,
             mergeTags = config.mergeTags,
             mergeGenres = config.mergeGenres,
+            preferLongerSummary = config.preferLongerSummary,
             bookCovers = config.bookCovers,
             seriesCovers = config.seriesCovers,
             overrideExistingCovers = config.overrideExistingCovers,
@@ -153,12 +154,19 @@ class AppConfigMapper {
             else apiKey.replace("(?<=.{4}).".toRegex(), "*")
         }
 
+        val metronApiKey = config.metronApiKey?.let { apiKey ->
+            // "username:password" credentials are never partially shown
+            if (apiKey.length < 32 || apiKey.contains(':')) maskedPlaceholder
+            else apiKey.replace("(?<=.{4}).".toRegex(), "*")
+        }
+
         return MetadataProvidersConfigDto(
             malClientId = malClientId,
             comicVineClientId = comicVineClientId,
             comicVineSearchLimit = config.comicVineSearchLimit,
             comicVineIssueName = config.comicVineIssueName,
             comicVineIdFormat = config.comicVineIdFormat,
+            metronApiKey = metronApiKey,
             nameMatchingMode = config.nameMatchingMode.fromNameMatchingMode(),
             defaultProviders = toDto(config.defaultProviders),
             libraryProviders = config.libraryProviders
@@ -186,6 +194,7 @@ class AppConfigMapper {
             aniList = toDto(config.aniList),
             mal = toDto(config.mal),
             comicVine = toDto(config.comicVine),
+            metron = toDto(config.metron),
 
             nautiljon = toDto(ProviderConfig()),
             yenPress = toDto(config.yenPress),
@@ -290,7 +299,9 @@ class AppConfigMapper {
             tags = config.tags,
             isbn = config.isbn,
             links = config.links,
-            thumbnail = config.thumbnail
+            thumbnail = config.thumbnail,
+            characters = config.characters,
+            teams = config.teams,
         )
     }
 
