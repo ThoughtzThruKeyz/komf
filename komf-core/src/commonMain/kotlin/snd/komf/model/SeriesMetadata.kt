@@ -27,6 +27,8 @@ data class SeriesMetadata(
     val tags: Collection<String> = emptyList(),
     val totalBookCount: Int? = null,
     val authors: List<Author> = emptyList(),
+    val characters: Collection<String> = emptyList(),
+    val teams: Collection<String> = emptyList(),
     val releaseDate: ReleaseDate? = null,
     val links: Collection<WebLink> = emptyList(),
     val score: Double? = null,

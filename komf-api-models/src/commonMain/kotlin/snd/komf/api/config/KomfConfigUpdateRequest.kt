@@ -218,6 +218,8 @@ data class BookMetadataConfigUpdateRequest(
     val isbn: PatchValue<Boolean> = PatchValue.Unset,
     val links: PatchValue<Boolean> = PatchValue.Unset,
     val thumbnail: PatchValue<Boolean> = PatchValue.Unset,
+    val characters: PatchValue<Boolean> = PatchValue.Unset,
+    val teams: PatchValue<Boolean> = PatchValue.Unset,
 )
 
 @Serializable

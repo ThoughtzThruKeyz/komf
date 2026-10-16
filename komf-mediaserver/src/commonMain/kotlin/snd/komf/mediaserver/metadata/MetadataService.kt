@@ -143,7 +143,7 @@ class MetadataService(
             } else SeriesAndBookMetadata(seriesMetadata.metadata, bookMetadata)
 
             eventFlow.emit(PostProcessingStartEvent)
-            metadataUpdateService.updateMetadata(series, metadata.withSeriesAuthorsFromBooks())
+            metadataUpdateService.updateMetadata(series, metadata.withSeriesPeopleFromBooks())
             seriesMatchRepository.save(
                 seriesId = series.id,
                 type = MANUAL,
@@ -235,7 +235,7 @@ class MetadataService(
             }
 
             eventFlow.emit(PostProcessingStartEvent)
-            metadataUpdateService.updateMetadata(series, metadata.withSeriesAuthorsFromBooks())
+            metadataUpdateService.updateMetadata(series, metadata.withSeriesPeopleFromBooks())
             logger.info { "finished metadata update of series \"${seriesTitle}\" ${series.id}" }
         }
 
@@ -415,12 +415,17 @@ class MetadataService(
         return SeriesAndBookMetadata(seriesMetadata.metadata, bookMetadata, seriesMetadata.seriesIds(providerName))
     }
 
-    // Comic providers list creators per issue only. Give the series the issues' creators when it has none of its own
-    private fun SeriesAndBookMetadata.withSeriesAuthorsFromBooks(): SeriesAndBookMetadata {
-        if (seriesMetadata.authors.isNotEmpty()) return this
-        val bookAuthors = bookMetadata.values.filterNotNull().flatMap { it.authors }.distinct()
-        if (bookAuthors.isEmpty()) return this
-        return copy(seriesMetadata = seriesMetadata.copy(authors = bookAuthors))
+    // Comic providers list creators, characters and teams per issue only. Give the series those of its issues when it
+    // has none of its own
+    private fun SeriesAndBookMetadata.withSeriesPeopleFromBooks(): SeriesAndBookMetadata {
+        val books = bookMetadata.values.filterNotNull()
+        return copy(
+            seriesMetadata = seriesMetadata.copy(
+                authors = seriesMetadata.authors.ifEmpty { books.flatMap { it.authors }.distinct() },
+                characters = seriesMetadata.characters.ifEmpty { books.flatMap { it.characters }.distinct() },
+                teams = seriesMetadata.teams.ifEmpty { books.flatMap { it.teams }.distinct() },
+            )
+        )
     }
 
     private fun mergeMetadata(

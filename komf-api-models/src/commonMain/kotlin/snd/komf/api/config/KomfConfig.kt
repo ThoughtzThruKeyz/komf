@@ -244,6 +244,8 @@ data class BookMetadataConfigDto(
     val isbn: Boolean,
     val links: Boolean,
     val thumbnail: Boolean,
+    val characters: Boolean = true,
+    val teams: Boolean = true,
 )
 
 @Serializable

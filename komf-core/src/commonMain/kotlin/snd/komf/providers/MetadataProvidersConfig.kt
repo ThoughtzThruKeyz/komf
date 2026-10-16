@@ -143,6 +143,8 @@ data class BookMetadataConfig(
     val releaseDate: Boolean = true,
     val authors: Boolean = true,
     val tags: Boolean = true,
+    val characters: Boolean = true,
+    val teams: Boolean = true,
     val isbn: Boolean = true,
     val links: Boolean = true,
     val thumbnail: Boolean = true,

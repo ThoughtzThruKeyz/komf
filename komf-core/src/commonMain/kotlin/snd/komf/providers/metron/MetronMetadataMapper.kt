@@ -119,6 +119,8 @@ class MetronMetadataMapper(
             numberSort = number,
             releaseDate = (issue.storeDate ?: issue.coverDate)?.let { LocalDate.parse(it) },
             authors = getAuthors(issue),
+            characters = issue.characters.map { it.name }.toSet(),
+            teams = issue.teams.map { it.name }.toSet(),
             isbn = issue.isbn?.ifBlank { null },
             links = listOf(WebLink("Metron", issue.resourceUrl)),
             storyArcs = storyArcs.mapNotNull { (name, arcIssues) ->

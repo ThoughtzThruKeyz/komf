@@ -289,7 +289,9 @@ class AppConfigUpdateMapper {
             tags = patch.tags.getOrNull() ?: config.tags,
             isbn = patch.isbn.getOrNull() ?: config.isbn,
             links = patch.links.getOrNull() ?: config.links,
-            thumbnail = patch.thumbnail.getOrNull() ?: config.thumbnail
+            thumbnail = patch.thumbnail.getOrNull() ?: config.thumbnail,
+            characters = patch.characters.getOrNull() ?: config.characters,
+            teams = patch.teams.getOrNull() ?: config.teams
         )
     }
 

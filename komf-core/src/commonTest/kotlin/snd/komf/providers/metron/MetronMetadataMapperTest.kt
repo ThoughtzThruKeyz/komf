@@ -156,8 +156,11 @@ class MetronMetadataMapperTest {
                 {"id": 3, "creator": "Fonografiks", "role": [{"id": 7, "name": "Letterer"}]},
                 {"id": 4, "creator": "Someone", "role": [{"id": 20, "name": "Production"}]}
               ],
-              "characters": [],
-              "teams": [],
+              "characters": [
+                {"id": 1, "name": "Hazel", "modified": "2024-05-01T10:00:00.000000-04:00"},
+                {"id": 2, "name": "Marko", "modified": "2024-05-01T10:00:00.000000-04:00"}
+              ],
+              "teams": [{"id": 3, "name": "The Will's crew", "modified": "2024-05-01T10:00:00.000000-04:00"}],
               "universes": [],
               "reprints": [],
               "variants": [],
@@ -192,6 +195,8 @@ class MetronMetadataMapperTest {
             metadata.authors
         )
         assertEquals(listOf(BookStoryArc("Chapter One", 2)), metadata.storyArcs)
+        assertEquals(setOf("Hazel", "Marko"), metadata.characters)
+        assertEquals(setOf("The Will's crew"), metadata.teams)
         assertEquals("https://metron.cloud/issue/saga-2012-1/", metadata.links.single().url)
     }
 }

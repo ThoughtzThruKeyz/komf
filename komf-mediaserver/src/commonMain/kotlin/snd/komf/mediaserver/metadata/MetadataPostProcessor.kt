@@ -168,6 +168,8 @@ class MetadataPostProcessor(
                 title = metadata?.title,
                 summary = metadata?.summary?.ifBlank { null } ?: seriesMetadata.summary,
                 tags = metadata?.tags?.toSet()?.ifEmpty { null } ?: seriesMetadata.tags.toSet(),
+                characters = metadata?.characters?.ifEmpty { null } ?: seriesMetadata.characters.toSet(),
+                teams = metadata?.teams?.ifEmpty { null } ?: seriesMetadata.teams.toSet(),
                 links = metadata?.links?.toList()?.ifEmpty { null } ?: seriesMetadata.links.toList(),
                 thumbnail = metadata?.thumbnail ?: seriesMetadata.thumbnail
             )

@@ -299,7 +299,9 @@ class AppConfigMapper {
             tags = config.tags,
             isbn = config.isbn,
             links = config.links,
-            thumbnail = config.thumbnail
+            thumbnail = config.thumbnail,
+            characters = config.characters,
+            teams = config.teams,
         )
     }
 

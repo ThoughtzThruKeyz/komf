@@ -302,6 +302,8 @@ private fun KavitaChapter.toMediaServerBookMetadata(): MediaServerBookMetadata {
         tagsLock = tagsLocked,
         isbnLock = false,
         linksLock = false,
+        charactersLock = characterLocked,
+        teamsLock = teamLocked,
     )
 }
 
@@ -374,6 +376,8 @@ private fun KavitaSeriesMetadata.toMediaServerSeriesMetadata(series: KavitaSerie
         releaseYearLock = releaseYearLocked,
         alternativeTitlesLock = series.localizedNameLocked,
         linksLock = false,
+        charactersLock = characterLocked,
+        teamsLock = teamLocked,
     )
 }
 
@@ -448,9 +452,9 @@ private fun MediaServerSeriesMetadataUpdate.toKavitaSeriesMetadataUpdate(current
         webLinks = links?.joinToString(separator = ",") { it.url } ?: currentMetadata.webLinks,
         id = currentMetadata.id,
         seriesId = currentMetadata.seriesId,
-        characters = currentMetadata.characters,
+        characters = characters?.map { KavitaAuthor(id = 0, name = it) }?.toSet() ?: currentMetadata.characters,
         imprints = currentMetadata.imprints,
-        teams = currentMetadata.teams,
+        teams = teams?.map { KavitaAuthor(id = 0, name = it) }?.toSet() ?: currentMetadata.teams,
         locations = currentMetadata.locations,
         maxCount = currentMetadata.maxCount,
         totalCount = currentMetadata.totalCount,
@@ -630,8 +634,8 @@ private fun MediaServerBookMetadataUpdate.toKavitaChapterMetadataUpdate(currentC
             ?.ifEmpty { currentChapter.translators } ?: currentChapter.translators,
         imprints = currentChapter.imprints,
         publishers = currentChapter.publishers,
-        characters = currentChapter.characters,
-        teams = currentChapter.teams,
+        characters = characters?.map { KavitaAuthor(id = 0, name = it) } ?: currentChapter.characters,
+        teams = teams?.map { KavitaAuthor(id = 0, name = it) } ?: currentChapter.teams,
         locations = currentChapter.locations,
         ageRatingLocked = currentChapter.ageRatingLocked,
         genresLocked = currentChapter.genresLocked,

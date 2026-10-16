@@ -40,6 +40,16 @@ class MetadataMergerTest {
     }
 
     @Test
+    fun `takes characters and teams from the next provider when the first has none`() {
+        val merged = merger(false).mergeBookMetadata(
+            mapOf(book to BookMetadata(characters = emptySet(), teams = setOf("Avengers"))),
+            mapOf(book to BookMetadata(characters = setOf("Anya Corazon"), teams = setOf("X-Men"))),
+        )
+        assertEquals(setOf("Anya Corazon"), merged[book]?.characters)
+        assertEquals(setOf("Avengers"), merged[book]?.teams)
+    }
+
+    @Test
     fun `keeps story arcs when merging books`() {
         val arcs = listOf(BookStoryArc("Chapter One", 2))
         val merged = merger(false).mergeBookMetadata(
