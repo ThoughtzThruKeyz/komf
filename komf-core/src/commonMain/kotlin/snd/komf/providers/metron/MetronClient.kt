@@ -29,12 +29,21 @@ class MetronClient(
     // An API token from the Metron account page, or "username:password" for Basic auth, which Metron still accepts
     private val authorization = if (apiKey.contains(':')) "Basic ${apiKey.encodeBase64()}" else "Bearer $apiKey"
 
-    suspend fun searchSeries(name: String): List<MetronSeriesListItem> {
+    // Metron returns series whose name contains every word of [name], 100 a page, ordered by sort name and start year
+    suspend fun searchSeries(name: String, yearBegan: Int?): MetronPage<MetronSeriesListItem> {
         rateLimiter.acquire()
         return ktor.get("$baseUrl/series/") {
             header(HttpHeaders.Authorization, authorization)
             parameter("name", name)
-        }.body<MetronPage<MetronSeriesListItem>>().results
+            yearBegan?.let { parameter("year_began", it) }
+        }.body()
+    }
+
+    suspend fun getSeriesPage(url: String): MetronPage<MetronSeriesListItem> {
+        rateLimiter.acquire()
+        return ktor.get(url) {
+            header(HttpHeaders.Authorization, authorization)
+        }.body()
     }
 
     suspend fun getSeries(id: MetronSeriesId): MetronSeries {

@@ -40,6 +40,8 @@ class MetronMetadataProvider(
         .build()
     private val startYearRegex = "\\((?<startYear>\\d{4})(-\\d{4})?\\)".toRegex()
     private val displayYearRegex = "\\s\\(\\d{4}\\)$".toRegex()
+    private val nonAlphanumericRegex = "[^\\p{L}\\p{N}]+".toRegex()
+    private val maxSearchPages = 3
 
     override fun providerName() = METRON
 
@@ -68,16 +70,16 @@ class MetronMetadataProvider(
     }
 
     override suspend fun searchSeries(seriesName: String, limit: Int): Collection<SeriesSearchResult> {
-        return client.searchSeries(seriesName.take(400))
+        return findSeries(removeParentheses(seriesName), extractYear(seriesName))
             .take(limit)
             .map { mapper.toSeriesSearchResult(it) }
     }
 
     override suspend fun matchSeriesMetadata(matchQuery: MatchQuery): ProviderSeriesMetadata? {
         val seriesName = removeParentheses(matchQuery.seriesName)
-        if (seriesName.isBlank()) return null
+        val startYear = matchQuery.startYear ?: extractYear(matchQuery.seriesName)
 
-        val results = client.searchSeries(seriesName.take(400))
+        val results = findSeries(seriesName, startYear)
             .filter { resultMatchFilter(matchQuery, it) }
 
         val match = if (results.size > 1) {
@@ -90,6 +92,44 @@ class MetronMetadataProvider(
 
         return match?.let { getSeriesMetadata(ProviderSeriesId(it.id.toString())) }
     }
+
+    // Metron lists every series containing the searched words alphabetically, so the series named exactly that can be
+    // several pages in for a common word. Results are ranked exact name first, then names starting with it
+    private suspend fun findSeries(name: String, startYear: Int?): List<MetronSeriesListItem> {
+        val query = name.take(400)
+        if (query.isBlank()) return emptyList()
+
+        val results = searchPages(query, startYear)
+            // the year may come from a file or folder name and be wrong
+            .ifEmpty { if (startYear != null) searchPages(query, null) else emptyList() }
+        return results.sortedBy { nameRank(query, it) }
+    }
+
+    private suspend fun searchPages(name: String, startYear: Int?): List<MetronSeriesListItem> {
+        val results = mutableListOf<MetronSeriesListItem>()
+        var page = client.searchSeries(name, startYear)
+        var pagesRead = 1
+        while (true) {
+            results.addAll(page.results)
+            val next = page.next
+            if (next == null || pagesRead == maxSearchPages || results.any { nameRank(name, it) == 0 }) break
+            page = client.getSeriesPage(next)
+            pagesRead++
+        }
+        return results
+    }
+
+    private fun nameRank(query: String, series: MetronSeriesListItem): Int {
+        val name = normalizeName(series.displayName.replace(displayYearRegex, ""))
+        val normalizedQuery = normalizeName(query)
+        return when {
+            name == normalizedQuery -> 0
+            name.startsWith(normalizedQuery) -> 1
+            else -> 2
+        }
+    }
+
+    private fun normalizeName(name: String) = name.lowercase().replace(nonAlphanumericRegex, " ").trim()
 
     private suspend fun matchesBookCover(seriesId: MetronSeriesId, qualifier: BookQualifier): Boolean {
         val qualifierImage = qualifier.cover ?: return false
