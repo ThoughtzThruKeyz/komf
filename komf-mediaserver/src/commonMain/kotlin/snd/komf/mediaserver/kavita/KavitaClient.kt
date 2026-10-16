@@ -176,6 +176,15 @@ class KavitaClient(
         }
     }
 
+    suspend fun uploadChapterCover(chapterId: KavitaChapterId, cover: Image, lockCover: Boolean) {
+        updatesRateLimiter.acquire()
+        val base64Image = Base64.getEncoder().encodeToString(cover.bytes)
+        ktor.post("api/upload/chapter") {
+            contentType(ContentType.Application.Json)
+            setBody(KavitaCoverUploadRequest(id = chapterId.value, url = base64Image, lockCover))
+        }
+    }
+
     suspend fun getLibraries(): Collection<KavitaLibrary> {
         return ktor.get("api/library/libraries").body()
     }

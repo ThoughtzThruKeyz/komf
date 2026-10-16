@@ -209,7 +209,15 @@ class KavitaMediaServerClientAdapter(private val kavitaClient: KavitaClient) : M
         lock: Boolean
     ): MediaServerBookThumbnail? {
         val chapter = kavitaClient.getChapter(bookId.toKavitaChapterId())
-        kavitaClient.uploadVolumeCover(chapter.volumeId, thumbnail, lock)
+        val volume = kavitaClient.getVolume(chapter.volumeId)
+
+        // Kavita keeps chapters that belong to no volume, such as comic issues, in one loose-leaf volume and specials in
+        // another, so a volume cover there would be whichever book was updated last. Give those books their own cover
+        if (chapter.isSpecial || volume.minNumber == looseLeafVolumeNumber || volume.minNumber == specialVolumeNumber) {
+            kavitaClient.uploadChapterCover(chapter.id, thumbnail, lock)
+        } else {
+            kavitaClient.uploadVolumeCover(chapter.volumeId, thumbnail, lock)
+        }
         return null
     }
 
@@ -219,6 +227,10 @@ class KavitaMediaServerClientAdapter(private val kavitaClient: KavitaClient) : M
     }
 }
 
+
+// Kavita's ParserConstants.LooseLeafVolumeNumber and SpecialVolumeNumber
+private const val looseLeafVolumeNumber = -100_000f
+private const val specialVolumeNumber = 100_000f
 
 private fun KavitaSeries.toMediaServerSeries(metadata: KavitaSeriesMetadata, bookCount: Int): MediaServerSeries {
     return MediaServerSeries(
