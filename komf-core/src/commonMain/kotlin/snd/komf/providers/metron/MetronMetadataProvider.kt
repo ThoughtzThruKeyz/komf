@@ -42,6 +42,8 @@ class MetronMetadataProvider(
     private val displayYearRegex = "\\s\\(\\d{4}\\)$".toRegex()
     private val nonAlphanumericRegex = "[^\\p{L}\\p{N}]+".toRegex()
     private val maxSearchPages = 3
+    private val whitespaceRegex = "\\s+".toRegex()
+    private val apostrophes = setOf('\'', '\u2019')
 
     override fun providerName() = METRON
 
@@ -99,20 +101,41 @@ class MetronMetadataProvider(
         val query = name.take(400)
         if (query.isBlank()) return emptyList()
 
-        val results = searchPages(query, startYear)
-            // the year may come from a file or folder name and be wrong
-            .ifEmpty { if (startYear != null) searchPages(query, null) else emptyList() }
+        val results = search(query, query, startYear)
+            .ifEmpty { searchByLongestWord(query, startYear) }
         return results.sortedBy { nameRank(query, it) }
     }
 
-    private suspend fun searchPages(name: String, startYear: Int?): List<MetronSeriesListItem> {
+    // Metron only finds a series when every searched word appears in its name as typed, so "Marvels Voices" finds
+    // nothing for "Marvel's Voices". Search the longest word alone and keep the series whose name has all the words
+    // once punctuation is ignored
+    private suspend fun searchByLongestWord(query: String, startYear: Int?): List<MetronSeriesListItem> {
+        val words = query.split(whitespaceRegex).filter { it.isNotBlank() }
+        if (words.size < 2) return emptyList()
+        val longestWord = words.filter { word -> word.none { it in apostrophes } }.maxByOrNull { it.length }
+            ?: return emptyList()
+
+        val queryWords = normalizeName(query).split(' ')
+        return search(longestWord, query, startYear).filter { series ->
+            val nameWords = normalizeName(series.displayName.replace(displayYearRegex, "")).split(' ').toSet()
+            queryWords.all { it in nameWords }
+        }
+    }
+
+    private suspend fun search(term: String, query: String, startYear: Int?): List<MetronSeriesListItem> {
+        return searchPages(term, query, startYear)
+            // the year may come from a file or folder name and be wrong
+            .ifEmpty { if (startYear != null) searchPages(term, query, null) else emptyList() }
+    }
+
+    private suspend fun searchPages(term: String, query: String, startYear: Int?): List<MetronSeriesListItem> {
         val results = mutableListOf<MetronSeriesListItem>()
-        var page = client.searchSeries(name, startYear)
+        var page = client.searchSeries(term, startYear)
         var pagesRead = 1
         while (true) {
             results.addAll(page.results)
             val next = page.next
-            if (next == null || pagesRead == maxSearchPages || results.any { nameRank(name, it) == 0 }) break
+            if (next == null || pagesRead == maxSearchPages || results.any { nameRank(query, it) == 0 }) break
             page = client.getSeriesPage(next)
             pagesRead++
         }
@@ -129,7 +152,11 @@ class MetronMetadataProvider(
         }
     }
 
-    private fun normalizeName(name: String) = name.lowercase().replace(nonAlphanumericRegex, " ").trim()
+    // "Marvel's Voices: Spider-Verse" -> "marvels voices spider verse"
+    private fun normalizeName(name: String) = name.lowercase()
+        .filterNot { it in apostrophes }
+        .replace(nonAlphanumericRegex, " ")
+        .trim()
 
     private suspend fun matchesBookCover(seriesId: MetronSeriesId, qualifier: BookQualifier): Boolean {
         val qualifierImage = qualifier.cover ?: return false
