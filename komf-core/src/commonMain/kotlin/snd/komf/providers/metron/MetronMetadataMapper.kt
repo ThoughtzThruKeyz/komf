@@ -88,6 +88,8 @@ class MetronMetadataMapper(
         val providerMetadata = ProviderSeriesMetadata(
             id = ProviderSeriesId(series.id.toString()),
             metadata = metadata,
+            externalIds = series.cvId?.let { mapOf(CoreProviders.COMIC_VINE to ProviderSeriesId(it.toString())) }
+                ?: emptyMap(),
             books = issues.map {
                 val number = it.number?.toDoubleOrNull()
                 SeriesBook(

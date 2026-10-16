@@ -12,6 +12,7 @@ object MetadataConfigApplier {
         return with(providerMetadata) {
             ProviderSeriesMetadata(
                 id = id,
+                externalIds = externalIds,
                 books = getIfEnabled(books, config.books) ?: emptyList(),
                 metadata = SeriesMetadata(
                     status = getIfEnabled(metadata.status, config.status),

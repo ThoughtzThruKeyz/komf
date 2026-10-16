@@ -12,6 +12,7 @@ import kotlinx.serialization.json.Json
 import snd.komf.ktor.intervalLimiter
 import snd.komf.model.ProviderSeriesId
 import snd.komf.providers.BookMetadataConfig
+import snd.komf.providers.CoreProviders
 import snd.komf.providers.SeriesMetadataConfig
 import snd.komf.util.NameSimilarityMatcher.Companion.nameSimilarityMatcher
 import snd.komf.util.NameSimilarityMatcher.NameMatchingMode
@@ -20,7 +21,7 @@ import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.seconds
 
 class MetronSearchTest {
-    private data class Series(val id: Int, val name: String, val year: Int)
+    private data class Series(val id: Int, val name: String, val year: Int, val cvId: Int? = null)
 
     // Answers /series/ like Metron: every word of "name" must appear in the series name as typed,
     // optional exact year_began, sorted by name, [pageSize] a page
@@ -35,12 +36,14 @@ class MetronSearchTest {
                 )
             }
             val params = request.url.parameters
-            val words = params["name"]!!.split(" ").filter { it.isNotBlank() }
+            val cvId = params["cv_id"]?.toInt()
+            val words = params["name"]?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
             val year = params["year_began"]?.toInt()
             val page = params["page"]?.toInt() ?: 1
             val matches = catalog
                 .filter { series -> words.all { series.name.contains(it, ignoreCase = true) } }
                 .filter { year == null || it.year == year }
+                .filter { cvId == null || it.cvId == cvId }
                 .sortedBy { it.name.lowercase() }
             val pageItems = matches.drop((page - 1) * pageSize).take(pageSize)
             val next = if (page * pageSize < matches.size)
@@ -126,6 +129,21 @@ class MetronSearchTest {
             assertEquals(listOf<Byte>(1, 2, 3), cover?.bytes?.toList())
         }
         assertEquals(1, requests.count { it.endsWith("/issue_list/") })
+    }
+
+    @Test
+    fun `finds a series by its ComicVine id`() {
+        val requests = mutableListOf<String>()
+        val provider = provider(
+            listOf(Series(7, "Arana: Heart of the Spider", 2005, cvId = 18110), Series(8, "Arana", 2005, cvId = 34300)),
+            requests = requests
+        )
+
+        val id = runBlocking { provider.findSeriesId(CoreProviders.COMIC_VINE, ProviderSeriesId("18110")) }
+
+        assertEquals(ProviderSeriesId("7"), id)
+        assertEquals(listOf("/api/series/?cv_id=18110"), requests)
+        assertEquals(null, runBlocking { provider.findSeriesId(CoreProviders.MAL, ProviderSeriesId("18110")) })
     }
 
     @Test

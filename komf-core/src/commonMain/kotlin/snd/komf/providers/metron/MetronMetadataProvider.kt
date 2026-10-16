@@ -12,6 +12,7 @@ import snd.komf.model.ProviderBookMetadata
 import snd.komf.model.ProviderSeriesId
 import snd.komf.model.ProviderSeriesMetadata
 import snd.komf.model.SeriesSearchResult
+import snd.komf.providers.CoreProviders
 import snd.komf.providers.CoreProviders.METRON
 import snd.komf.providers.MetadataProvider
 import snd.komf.providers.metron.model.MetronArcId
@@ -167,6 +168,12 @@ class MetronMetadataProvider(
         .filterNot { it in apostrophes }
         .replace(nonAlphanumericRegex, " ")
         .trim()
+
+    override suspend fun findSeriesId(provider: CoreProviders, seriesId: ProviderSeriesId): ProviderSeriesId? {
+        if (provider != CoreProviders.COMIC_VINE) return null
+        val comicVineId = seriesId.value.toIntOrNull() ?: return null
+        return client.findSeriesByComicVineId(comicVineId).firstOrNull()?.let { ProviderSeriesId(it.id.toString()) }
+    }
 
     private suspend fun matchesBookCover(seriesId: MetronSeriesId, qualifier: BookQualifier): Boolean {
         val qualifierImage = qualifier.cover ?: return false

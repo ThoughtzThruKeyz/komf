@@ -39,6 +39,14 @@ class MetronClient(
         }.body()
     }
 
+    suspend fun findSeriesByComicVineId(comicVineId: Int): List<MetronSeriesListItem> {
+        rateLimiter.acquire()
+        return ktor.get("$baseUrl/series/") {
+            header(HttpHeaders.Authorization, authorization)
+            parameter("cv_id", comicVineId)
+        }.body<MetronPage<MetronSeriesListItem>>().results
+    }
+
     suspend fun getSeriesPage(url: String): MetronPage<MetronSeriesListItem> {
         rateLimiter.acquire()
         return ktor.get(url) {

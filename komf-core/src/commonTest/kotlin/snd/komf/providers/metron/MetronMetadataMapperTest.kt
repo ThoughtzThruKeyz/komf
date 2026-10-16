@@ -6,8 +6,10 @@ import snd.komf.model.Author
 import snd.komf.model.AuthorRole
 import snd.komf.model.BookRange
 import snd.komf.model.BookStoryArc
+import snd.komf.model.ProviderSeriesId
 import snd.komf.model.SeriesStatus
 import snd.komf.providers.BookMetadataConfig
+import snd.komf.providers.CoreProviders
 import snd.komf.providers.SeriesMetadataConfig
 import snd.komf.providers.metron.model.MetronIssue
 import snd.komf.providers.metron.model.MetronIssueId
@@ -106,6 +108,7 @@ class MetronMetadataMapperTest {
         assertEquals(72, metadata.totalBookCount)
         assertEquals(2012, metadata.releaseDate?.year)
         assertEquals("https://metron.cloud/series/saga-2012/", metadata.links.single().url)
+        assertEquals(mapOf(CoreProviders.COMIC_VINE to ProviderSeriesId("48466")), result.externalIds)
 
         assertEquals(listOf("36860", "36861"), result.books.map { it.id.id })
         assertEquals(BookRange(1.0, 1.0), result.books[0].number)
