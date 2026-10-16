@@ -10,6 +10,7 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import snd.komf.ktor.intervalLimiter
+import snd.komf.model.ProviderSeriesId
 import snd.komf.providers.BookMetadataConfig
 import snd.komf.providers.SeriesMetadataConfig
 import snd.komf.util.NameSimilarityMatcher.Companion.nameSimilarityMatcher
@@ -26,6 +27,13 @@ class MetronSearchTest {
     private fun provider(catalog: List<Series>, pageSize: Int = 100, requests: MutableList<String>): MetronMetadataProvider {
         val engine = MockEngine { request ->
             requests.add(request.url.encodedPathAndQuery)
+            if (request.url.host == "static.metron.cloud") return@MockEngine respond(byteArrayOf(1, 2, 3))
+            if (request.url.encodedPath.endsWith("/issue_list/")) {
+                return@MockEngine respond(
+                    """{"count":1,"next":null,"previous":null,"results":[{"id":5,"number":"1","issue":"x #1","image":"https://static.metron.cloud/cover.jpg"}]}""",
+                    headers = headersOf(HttpHeaders.ContentType, "application/json")
+                )
+            }
             val params = request.url.parameters
             val words = params["name"]!!.split(" ").filter { it.isNotBlank() }
             val year = params["year_began"]?.toInt()
@@ -103,6 +111,21 @@ class MetronSearchTest {
 
         assertEquals(listOf("Saga (2012) (Marvel)"), search(provider, "Saga (2012)"))
         assertEquals(listOf("/api/series/?name=Saga&year_began=2012"), requests)
+    }
+
+    @Test
+    fun `gives results a cover and asks Metron for each series' cover once`() {
+        val requests = mutableListOf<String>()
+        val provider = provider(listOf(Series(42, "Saga", 2012)), requests = requests)
+
+        val result = runBlocking { provider.searchSeries("Saga", 20) }.single()
+        assertEquals("https://metron.cloud/api/series/42/", result.imageUrl)
+
+        repeat(2) {
+            val cover = runBlocking { provider.getSeriesCover(ProviderSeriesId("42")) }
+            assertEquals(listOf<Byte>(1, 2, 3), cover?.bytes?.toList())
+        }
+        assertEquals(1, requests.count { it.endsWith("/issue_list/") })
     }
 
     @Test

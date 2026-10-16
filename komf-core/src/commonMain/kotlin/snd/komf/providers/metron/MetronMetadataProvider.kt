@@ -38,10 +38,15 @@ class MetronMetadataProvider(
     private val arcIssuesCache = Cache.Builder<MetronArcId, List<MetronIssueId>>()
         .expireAfterWrite(30.minutes)
         .build()
+    // first issue's cover url per series, "" when it has none, so search results and identify don't ask Metron again
+    private val coverUrlCache = Cache.Builder<MetronSeriesId, String>()
+        .expireAfterWrite(30.minutes)
+        .build()
     private val startYearRegex = "\\((?<startYear>\\d{4})(-\\d{4})?\\)".toRegex()
     private val displayYearRegex = "\\s\\(\\d{4}\\)$".toRegex()
     private val nonAlphanumericRegex = "[^\\p{L}\\p{N}]+".toRegex()
     private val maxSearchPages = 3
+    private val maxSearchResults = 10
     private val whitespaceRegex = "\\s+".toRegex()
     private val apostrophes = setOf('\'', '\u2019')
 
@@ -51,15 +56,19 @@ class MetronMetadataProvider(
         val metronSeriesId = seriesId.toMetronSeriesId()
         val series = client.getSeries(metronSeriesId)
         val issues = client.getSeriesIssues(metronSeriesId)
-        val cover = if (fetchSeriesCovers) issues.firstNotNullOfOrNull { it.image }?.let { getCover(it) } else null
+        val coverUrl = issues.firstNotNullOfOrNull { it.image }
+        coverUrlCache.put(metronSeriesId, coverUrl ?: "")
+        val cover = if (fetchSeriesCovers) coverUrl?.let { getCover(it) } else null
         return mapper.toSeriesMetadata(series, issues, cover)
     }
 
     override suspend fun getSeriesCover(seriesId: ProviderSeriesId): Image? {
         // Metron has no series image, the first issue's cover stands in for it
-        return client.getSeriesIssues(seriesId.toMetronSeriesId(), firstPageOnly = true)
-            .firstNotNullOfOrNull { it.image }
-            ?.let { getCover(it) }
+        val metronSeriesId = seriesId.toMetronSeriesId()
+        val coverUrl = coverUrlCache.get(metronSeriesId) {
+            client.getSeriesIssues(metronSeriesId, firstPageOnly = true).firstNotNullOfOrNull { it.image } ?: ""
+        }
+        return coverUrl.ifEmpty { null }?.let { getCover(it) }
     }
 
     override suspend fun getBookMetadata(seriesId: ProviderSeriesId, bookId: ProviderBookId): ProviderBookMetadata {
@@ -73,7 +82,8 @@ class MetronMetadataProvider(
 
     override suspend fun searchSeries(seriesName: String, limit: Int): Collection<SeriesSearchResult> {
         return findSeries(removeParentheses(seriesName), extractYear(seriesName))
-            .take(limit)
+            // each result's cover costs a Metron request when Komelia shows it
+            .take(minOf(limit, maxSearchResults))
             .map { mapper.toSeriesSearchResult(it) }
     }
 

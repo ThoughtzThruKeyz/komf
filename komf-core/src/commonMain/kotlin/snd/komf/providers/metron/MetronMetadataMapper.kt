@@ -34,6 +34,7 @@ import snd.komf.providers.metron.model.MetronIssue
 import snd.komf.providers.metron.model.MetronIssueId
 import snd.komf.providers.metron.model.MetronIssueListItem
 import snd.komf.providers.metron.model.MetronSeries
+import snd.komf.providers.metron.model.MetronSeriesId
 import snd.komf.providers.metron.model.MetronSeriesListItem
 
 class MetronMetadataMapper(
@@ -45,7 +46,7 @@ class MetronMetadataMapper(
         return SeriesSearchResult(
             // the list endpoint has no page link, and Metron's pages are addressed by slug rather than id
             url = null,
-            imageUrl = null,
+            imageUrl = coverKey(series.id),
             title = seriesTitle(series.displayName, series.publisher?.name),
             provider = CoreProviders.METRON,
             resultId = series.id.toString()
@@ -56,7 +57,7 @@ class MetronMetadataMapper(
         val yearBegan = series.yearBegan?.let { " ($it)" } ?: ""
         return SeriesSearchResult(
             url = series.resourceUrl,
-            imageUrl = null,
+            imageUrl = coverKey(series.id),
             title = seriesTitle("${series.name}$yearBegan", series.publisher?.name),
             provider = CoreProviders.METRON,
             resultId = series.id.toString()
@@ -164,6 +165,10 @@ class MetronMetadataMapper(
             }
             .distinct()
     }
+
+    // Metron's search has no images. Komelia fetches every result's cover through getSeriesCover but only shows it
+    // when the result has an imageUrl, which it uses as the cache key, so give each result a stable one
+    private fun coverKey(id: MetronSeriesId) = "https://metron.cloud/api/series/$id/"
 
     private fun seriesTitle(displayName: String, publisher: String?): String {
         return publisher?.let { "$displayName ($it)" } ?: displayName
