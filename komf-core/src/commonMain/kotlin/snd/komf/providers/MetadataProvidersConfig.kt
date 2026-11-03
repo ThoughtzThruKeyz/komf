@@ -20,6 +20,7 @@ data class MetadataProvidersConfig(
     val comicVineSearchLimit: Int? = null,
     val comicVineIssueName: String? = null,
     val comicVineIdFormat: String? = null,
+    val metronApiKey: String? = null,
     @Deprecated("to be removed")
     val bangumiToken: String? = null,
     val nameMatchingMode: NameMatchingMode = NameMatchingMode.CLOSEST_MATCH,
@@ -36,6 +37,7 @@ data class ProvidersConfig(
     val aniList: AniListConfig = AniListConfig(),
     val mal: ProviderConfig = ProviderConfig(),
     val comicVine: ProviderConfig = ProviderConfig(),
+    val metron: ProviderConfig = ProviderConfig(),
 
     @Deprecated("to be removed")
     val yenPress: ProviderConfig = ProviderConfig(),
@@ -141,6 +143,8 @@ data class BookMetadataConfig(
     val releaseDate: Boolean = true,
     val authors: Boolean = true,
     val tags: Boolean = true,
+    val characters: Boolean = true,
+    val teams: Boolean = true,
     val isbn: Boolean = true,
     val links: Boolean = true,
     val thumbnail: Boolean = true,

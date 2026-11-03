@@ -30,6 +30,7 @@ import snd.komf.mediaserver.model.MediaServerLibraryId
 import snd.komf.mediaserver.model.MediaServerSeries
 import snd.komf.mediaserver.model.MediaServerSeriesId
 import snd.komf.mediaserver.model.SeriesAndBookMetadata
+import snd.komf.mediaserver.model.seriesIds
 import snd.komf.model.BookMetadata
 import snd.komf.model.BookQualifier
 import snd.komf.model.BookRange
@@ -132,7 +133,9 @@ class MetadataService(
                 aggregateMetadataFromProviders(
                     series = series,
                     books = books,
-                    metadata = SeriesAndBookMetadata(seriesMetadata.metadata, bookMetadata),
+                    metadata = SeriesAndBookMetadata(
+                        seriesMetadata.metadata, bookMetadata, seriesMetadata.seriesIds(providerName)
+                    ),
                     providers = metadataProviders.providers(series.libraryId.value).filter { it != provider },
                     edition = edition,
                     eventFlow = eventFlow
@@ -140,7 +143,7 @@ class MetadataService(
             } else SeriesAndBookMetadata(seriesMetadata.metadata, bookMetadata)
 
             eventFlow.emit(PostProcessingStartEvent)
-            metadataUpdateService.updateMetadata(series, metadata)
+            metadataUpdateService.updateMetadata(series, metadata.withSeriesPeopleFromBooks())
             seriesMatchRepository.save(
                 seriesId = series.id,
                 type = MANUAL,
@@ -192,7 +195,9 @@ class MetadataService(
                 logger.info { "using ${matchProvider.providerName()} from previous manual identification for $seriesTitle ${series.id}" }
                 val seriesMetadata = getSeriesMetadata(matchProvider, existingMatch.providerSeriesId, eventFlow)
                 val bookMetadata = getBookMetadata(books, seriesMetadata, matchProvider, null, eventFlow)
-                matchProvider to SeriesAndBookMetadata(seriesMetadata.metadata, bookMetadata)
+                matchProvider to SeriesAndBookMetadata(
+                    seriesMetadata.metadata, bookMetadata, seriesMetadata.seriesIds(matchProvider.providerName())
+                )
             } else {
                 val noParensTitle = removeParentheses(seriesTitle).let { if (it == seriesTitle) null else it }
                 val searchTitles = (
@@ -230,7 +235,7 @@ class MetadataService(
             }
 
             eventFlow.emit(PostProcessingStartEvent)
-            metadataUpdateService.updateMetadata(series, metadata)
+            metadataUpdateService.updateMetadata(series, metadata.withSeriesPeopleFromBooks())
             logger.info { "finished metadata update of series \"${seriesTitle}\" ${series.id}" }
         }
 
@@ -260,7 +265,7 @@ class MetadataService(
             if (result != null) {
                 logger.info { "found match: \"${result.metadata.titles.firstOrNull()?.name}\" from ${provider.providerName()}  ${result.id}" }
                 val bookMetadata = getBookMetadata(books, result, provider, bookEdition, eventFlow)
-                return SeriesAndBookMetadata(result.metadata, bookMetadata)
+                return SeriesAndBookMetadata(result.metadata, bookMetadata, result.seriesIds(provider.providerName()))
             }
         }
         return null
@@ -359,14 +364,15 @@ class MetadataService(
             .map { provider ->
                 coroutineScope.async {
                     try {
-                        matchSeries(
-                            series = series,
-                            books = books,
-                            searchTitles = searchTitles,
-                            provider = provider,
-                            bookEdition = edition,
-                            eventFlow = eventFlow
-                        ).also {
+                        (matchSeriesById(metadata.seriesIds, books, provider, edition, eventFlow)
+                            ?: matchSeries(
+                                series = series,
+                                books = books,
+                                searchTitles = searchTitles,
+                                provider = provider,
+                                bookEdition = edition,
+                                eventFlow = eventFlow
+                            )).also {
                             eventFlow.emit(ProviderCompletedEvent(provider.providerName()))
                         }
                     } catch (e: Exception) {
@@ -378,6 +384,48 @@ class MetadataService(
             }
             .mapNotNull { it.await() }
             .fold(metadata) { oldMetadata, newMetadata -> mergeMetadata(oldMetadata, newMetadata) }
+    }
+
+    // Providers such as Metron record a series' id on other providers. Use it instead of searching by name, so every
+    // provider describes the same series
+    private suspend fun matchSeriesById(
+        seriesIds: Map<CoreProviders, ProviderSeriesId>,
+        books: Collection<MediaServerBook>,
+        provider: MetadataProvider,
+        bookEdition: String?,
+        eventFlow: MutableSharedFlow<MetadataJobEvent>
+    ): SeriesAndBookMetadata? {
+        val providerName = provider.providerName()
+        val providerSeriesId = seriesIds[providerName]
+            ?: seriesIds.firstNotNullOfOrNull { (linkedProvider, linkedId) ->
+                runCatching { provider.findSeriesId(linkedProvider, linkedId) }
+                    .onFailure { logger.error(it) { "$providerName lookup of $linkedProvider $linkedId failed" } }
+                    .getOrNull()
+            }
+            ?: return null
+
+        logger.info { "using linked series $providerSeriesId from $providerName" }
+        val seriesMetadata = try {
+            getSeriesMetadata(provider, providerSeriesId, eventFlow)
+        } catch (e: Exception) {
+            logger.error(e) { "$providerName linked series $providerSeriesId failed, searching by name instead" }
+            return null
+        }
+        val bookMetadata = getBookMetadata(books, seriesMetadata, provider, bookEdition, eventFlow)
+        return SeriesAndBookMetadata(seriesMetadata.metadata, bookMetadata, seriesMetadata.seriesIds(providerName))
+    }
+
+    // Comic providers list creators, characters and teams per issue only. Give the series those of its issues when it
+    // has none of its own
+    private fun SeriesAndBookMetadata.withSeriesPeopleFromBooks(): SeriesAndBookMetadata {
+        val books = bookMetadata.values.filterNotNull()
+        return copy(
+            seriesMetadata = seriesMetadata.copy(
+                authors = seriesMetadata.authors.ifEmpty { books.flatMap { it.authors }.distinct() },
+                characters = seriesMetadata.characters.ifEmpty { books.flatMap { it.characters }.distinct() },
+                teams = seriesMetadata.teams.ifEmpty { books.flatMap { it.teams }.distinct() },
+            )
+        )
     }
 
     private fun mergeMetadata(

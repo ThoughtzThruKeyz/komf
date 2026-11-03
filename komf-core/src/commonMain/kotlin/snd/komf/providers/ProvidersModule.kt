@@ -54,6 +54,9 @@ import snd.komf.providers.mangadex.model.MangaDexUnknownRelationship
 import snd.komf.providers.mangaupdates.MangaUpdatesClient
 import snd.komf.providers.mangaupdates.MangaUpdatesMetadataMapper
 import snd.komf.providers.mangaupdates.MangaUpdatesMetadataProvider
+import snd.komf.providers.metron.MetronClient
+import snd.komf.providers.metron.MetronMetadataMapper
+import snd.komf.providers.metron.MetronMetadataProvider
 import snd.komf.providers.viz.VizClient
 import snd.komf.providers.viz.VizMetadataMapper
 import snd.komf.providers.viz.VizMetadataProvider
@@ -65,6 +68,7 @@ import snd.komf.providers.yenpress.YenPressMetadataMapper
 import snd.komf.providers.yenpress.YenPressMetadataProvider
 import snd.komf.util.NameSimilarityMatcher
 import snd.komf.util.NameSimilarityMatcher.Companion.nameSimilarityMatcher
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 private val logger = KotlinLogging.logger { }
@@ -101,6 +105,7 @@ class ProvidersModule(
             comicVineSearchLimit = config.comicVineSearchLimit,
             comicVineIssueName = config.comicVineIssueName,
             comicVineIdFormat = config.comicVineIdFormat,
+            metronApiKey = config.metronApiKey,
             bangumiToken = config.bangumiToken,
         )
         val libraryProviders = config.libraryProviders
@@ -113,6 +118,7 @@ class ProvidersModule(
                     comicVineSearchLimit = config.comicVineSearchLimit,
                     comicVineIssueName = config.comicVineIssueName,
                     comicVineIdFormat = config.comicVineIdFormat,
+                    metronApiKey = config.metronApiKey,
                     bangumiToken = config.bangumiToken,
                 )
             }
@@ -126,6 +132,9 @@ class ProvidersModule(
     }
 
     private val comicVineRateLimiter = ComicVineRateLimiter()
+
+    // Metron allows 20 requests a minute per account; stay a little under it
+    private val metronRateLimiter = rateLimiter(eventsPerInterval = 18, interval = 1.minutes)
     private val malRateLimiter = rateLimiter(eventsPerInterval = 10, interval = 10.seconds)
     private val bangumiRateLimiter = intervalLimiter(eventsPerInterval = 10, interval = 7.seconds)
 
@@ -275,6 +284,7 @@ class ProvidersModule(
         comicVineSearchLimit: Int?,
         comicVineIssueName: String?,
         comicVineIdFormat: String?,
+        metronApiKey: String?,
         bangumiToken: String?,
     ): MetadataProvidersContainer {
         return MetadataProvidersContainer(
@@ -337,6 +347,12 @@ class ProvidersModule(
                 defaultNameMatcher = defaultNameMatcher,
             ),
             comicVinePriority = config.comicVine.priority,
+            metron = createMetronMetadataProvider(
+                config = config.metron,
+                apiKey = metronApiKey,
+                defaultNameMatcher = defaultNameMatcher,
+            ),
+            metronPriority = config.metron.priority,
             mangaBaka = createMangaBakaMetadataProvider(
                 config = config.mangaBaka,
                 datasource = when (config.mangaBaka.mode) {
@@ -628,6 +644,39 @@ class ProvidersModule(
         )
     }
 
+    private fun createMetronMetadataProvider(
+        config: ProviderConfig,
+        apiKey: String?,
+        defaultNameMatcher: NameSimilarityMatcher,
+    ): MetronMetadataProvider? {
+        if (config.enabled.not()) return null
+        requireNotNull(apiKey) { "Api key is not configured for Metron provider" }
+
+        val metronClient = MetronClient(
+            ktor = baseHttpClientJson.config {
+                install(HttpRequestRetry) {
+                    defaultRetry()
+                }
+            },
+            apiKey = apiKey,
+            rateLimiter = metronRateLimiter,
+        )
+        val metadataMapper = MetronMetadataMapper(
+            seriesMetadataConfig = config.seriesMetadata,
+            bookMetadataConfig = config.bookMetadata,
+        )
+        val similarityMatcher: NameSimilarityMatcher =
+            config.nameMatchingMode?.let { nameSimilarityMatcher(it) } ?: defaultNameMatcher
+
+        return MetronMetadataProvider(
+            client = metronClient,
+            mapper = metadataMapper,
+            nameMatcher = similarityMatcher,
+            fetchSeriesCovers = config.seriesMetadata.thumbnail,
+            fetchBookCovers = config.bookMetadata.thumbnail,
+        )
+    }
+
     private fun createMangaBakaMetadataProvider(
         config: MangaBakaConfig,
         datasource: MangaBakaDataSource?,
@@ -717,6 +766,9 @@ class ProvidersModule(
         private val comicVine: ComicVineMetadataProvider?,
         private val comicVinePriority: Int,
 
+        private val metron: MetronMetadataProvider?,
+        private val metronPriority: Int,
+
         private val mangaBaka: MangaBakaMetadataProvider?,
         private val mangaBakaPriority: Int,
 
@@ -734,6 +786,7 @@ class ProvidersModule(
             mangaDex?.let { it to mangaDexPriority },
             bangumi?.let { it to bangumiPriority },
             comicVine?.let { it to comicVinePriority },
+            metron?.let { it to metronPriority },
             mangaBaka?.let { it to mangaBakaPriority },
             webtoons?.let { it to webtoonsPriority }
         )
@@ -750,6 +803,7 @@ class ProvidersModule(
                 CoreProviders.ANILIST -> anilist
                 CoreProviders.MAL -> mal
                 CoreProviders.COMIC_VINE -> comicVine
+                CoreProviders.METRON -> metron
 
                 CoreProviders.YEN_PRESS -> yenPress
                 CoreProviders.VIZ -> viz

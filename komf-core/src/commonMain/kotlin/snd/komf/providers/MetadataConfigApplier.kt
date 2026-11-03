@@ -12,6 +12,7 @@ object MetadataConfigApplier {
         return with(providerMetadata) {
             ProviderSeriesMetadata(
                 id = id,
+                externalIds = externalIds,
                 books = getIfEnabled(books, config.books) ?: emptyList(),
                 metadata = SeriesMetadata(
                     status = getIfEnabled(metadata.status, config.status),
@@ -28,6 +29,8 @@ object MetadataConfigApplier {
                     tags = getIfEnabled(metadata.tags, config.tags) ?: emptyList(),
                     totalBookCount = getIfEnabled(metadata.totalBookCount, config.totalBookCount),
                     authors = getIfEnabled(metadata.authors, config.authors) ?: emptyList(),
+                    characters = metadata.characters,
+                    teams = metadata.teams,
                     releaseDate = getIfEnabled(metadata.releaseDate, config.releaseDate),
                     thumbnail = getIfEnabled(metadata.thumbnail, config.thumbnail),
                     links = getIfEnabled(metadata.links, config.links) ?: emptyList(),
@@ -49,6 +52,8 @@ object MetadataConfigApplier {
                     releaseDate = getIfEnabled(metadata.releaseDate, config.releaseDate),
                     authors = getIfEnabled(metadata.authors, config.authors) ?: emptyList(),
                     tags = getIfEnabled(metadata.tags, config.tags) ?: emptySet(),
+                    characters = getIfEnabled(metadata.characters, config.characters) ?: emptySet(),
+                    teams = getIfEnabled(metadata.teams, config.teams) ?: emptySet(),
                     isbn = getIfEnabled(metadata.isbn, config.isbn),
                     links = getIfEnabled(metadata.links, config.links) ?: emptyList(),
                     thumbnail = getIfEnabled(metadata.thumbnail, config.thumbnail),

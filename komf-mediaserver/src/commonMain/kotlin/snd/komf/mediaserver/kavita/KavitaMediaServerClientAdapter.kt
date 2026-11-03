@@ -209,7 +209,15 @@ class KavitaMediaServerClientAdapter(private val kavitaClient: KavitaClient) : M
         lock: Boolean
     ): MediaServerBookThumbnail? {
         val chapter = kavitaClient.getChapter(bookId.toKavitaChapterId())
-        kavitaClient.uploadVolumeCover(chapter.volumeId, thumbnail, lock)
+        val volume = kavitaClient.getVolume(chapter.volumeId)
+
+        // Kavita keeps chapters that belong to no volume, such as comic issues, in one loose-leaf volume and specials in
+        // another, so a volume cover there would be whichever book was updated last. Give those books their own cover
+        if (chapter.isSpecial || volume.minNumber == looseLeafVolumeNumber || volume.minNumber == specialVolumeNumber) {
+            kavitaClient.uploadChapterCover(chapter.id, thumbnail, lock)
+        } else {
+            kavitaClient.uploadVolumeCover(chapter.volumeId, thumbnail, lock)
+        }
         return null
     }
 
@@ -219,6 +227,10 @@ class KavitaMediaServerClientAdapter(private val kavitaClient: KavitaClient) : M
     }
 }
 
+
+// Kavita's ParserConstants.LooseLeafVolumeNumber and SpecialVolumeNumber
+private const val looseLeafVolumeNumber = -100_000f
+private const val specialVolumeNumber = 100_000f
 
 private fun KavitaSeries.toMediaServerSeries(metadata: KavitaSeriesMetadata, bookCount: Int): MediaServerSeries {
     return MediaServerSeries(
@@ -290,6 +302,8 @@ private fun KavitaChapter.toMediaServerBookMetadata(): MediaServerBookMetadata {
         tagsLock = tagsLocked,
         isbnLock = false,
         linksLock = false,
+        charactersLock = characterLocked,
+        teamsLock = teamLocked,
     )
 }
 
@@ -362,6 +376,8 @@ private fun KavitaSeriesMetadata.toMediaServerSeriesMetadata(series: KavitaSerie
         releaseYearLock = releaseYearLocked,
         alternativeTitlesLock = series.localizedNameLocked,
         linksLock = false,
+        charactersLock = characterLocked,
+        teamsLock = teamLocked,
     )
 }
 
@@ -436,9 +452,9 @@ private fun MediaServerSeriesMetadataUpdate.toKavitaSeriesMetadataUpdate(current
         webLinks = links?.joinToString(separator = ",") { it.url } ?: currentMetadata.webLinks,
         id = currentMetadata.id,
         seriesId = currentMetadata.seriesId,
-        characters = currentMetadata.characters,
+        characters = characters?.map { KavitaAuthor(id = 0, name = it) }?.toSet() ?: currentMetadata.characters,
         imprints = currentMetadata.imprints,
-        teams = currentMetadata.teams,
+        teams = teams?.map { KavitaAuthor(id = 0, name = it) }?.toSet() ?: currentMetadata.teams,
         locations = currentMetadata.locations,
         maxCount = currentMetadata.maxCount,
         totalCount = currentMetadata.totalCount,
@@ -618,8 +634,8 @@ private fun MediaServerBookMetadataUpdate.toKavitaChapterMetadataUpdate(currentC
             ?.ifEmpty { currentChapter.translators } ?: currentChapter.translators,
         imprints = currentChapter.imprints,
         publishers = currentChapter.publishers,
-        characters = currentChapter.characters,
-        teams = currentChapter.teams,
+        characters = characters?.map { KavitaAuthor(id = 0, name = it) } ?: currentChapter.characters,
+        teams = teams?.map { KavitaAuthor(id = 0, name = it) } ?: currentChapter.teams,
         locations = currentChapter.locations,
         ageRatingLocked = currentChapter.ageRatingLocked,
         genresLocked = currentChapter.genresLocked,

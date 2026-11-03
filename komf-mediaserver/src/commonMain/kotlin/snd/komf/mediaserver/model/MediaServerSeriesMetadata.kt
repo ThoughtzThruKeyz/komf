@@ -37,4 +37,6 @@ data class MediaServerSeriesMetadata(
     val authorsLock: Boolean,
     val releaseYearLock: Boolean,
     val linksLock: Boolean,
+    val charactersLock: Boolean = false,
+    val teamsLock: Boolean = false,
 )

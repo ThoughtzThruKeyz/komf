@@ -8,6 +8,7 @@ enum class CoreProviders {
     ANILIST,
     MAL,
     COMIC_VINE,
+    METRON,
 
     @Deprecated("Unmaintained. Untested")
     BANGUMI,

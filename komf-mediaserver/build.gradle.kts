@@ -42,6 +42,9 @@ kotlin {
             api(libs.komga.client)
 
         }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+        }
     }
 
 }

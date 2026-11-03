@@ -108,6 +108,7 @@ komga:
       aggregate: false # if enabled will search and aggregate metadata from all configured providers
       mergeTags: false # if true and aggregate is enabled will merge tags from all providers
       mergeGenres: false # if true and aggregate is enabled will merge genres from all providers
+      preferLongerSummary: false # if true and aggregate is enabled will keep the series and book summaries with the most words instead of the first matched provider's
       bookCovers: false # update book thumbnails
       seriesCovers: false # update series thumbnails
       overrideExistingCovers: true # if false will upload but not select new cover if another cover already exists
@@ -152,6 +153,7 @@ kavita:
       aggregate: false # if enabled will search and aggregate metadata from all configured providers
       mergeTags: false # if true and aggregate is enabled will merge tags from all providers
       mergeGenres: false # if true and aggregate is enabled will merge genres from all providers
+      preferLongerSummary: false # if true and aggregate is enabled will keep the series and book summaries with the most words instead of the first matched provider's
       bookCovers: false #update book thumbnails
       seriesCovers: false #update series thumbnails
       overrideExistingCovers: true # if false will upload but not select new cover if another cover already exists
@@ -186,6 +188,7 @@ metadataProviders:
   comicVineSearchLimit: # define ComicVine search result Limit, default is 10
   comicVineIssueName: # string that contains "{number}" which will be replaced by the issue number ie. "Issue #{number}". Used when an issue has no name on ComicVine, default is null
   comicVineIdFormat: # string that contains "{id}" which will serve to parse the ComicVine volume of a given book from its title or folder name ie. "[cv-{id}]" which will correctly identify '.../Uncanny X-Men Omnibus (2006) [cv-27512]' as being [4050-27512](https://comicvine.gamespot.com/uncanny-x-men-omnibus/4050-27512/)
+  metronApiKey: # required for metron provider. An API token from your https://metron.cloud account, or "username:password". env:KOMF_METADATA_PROVIDERS_METRON_API_KEY
   bangumiToken: # bangumi provider require a token to show nsfw items https://next.bgm.tv/demo/access-token  env:KOMF_METADATA_PROVIDERS_BANGUMI_TOKEN
   defaultProviders:
     mangaUpdates:
@@ -232,6 +235,9 @@ metadataProviders:
       enabled: false
     comicVine: # https://comicvine.gamespot.com/ requires API key. Experimental provider, can mismatch issue numbers
       priority: 110
+      enabled: false
+    metron: # https://metron.cloud/ requires API key. Comics provider with series status. Limited to 20 requests a minute
+      priority: 115
       enabled: false
     hentag:
       priority: 120

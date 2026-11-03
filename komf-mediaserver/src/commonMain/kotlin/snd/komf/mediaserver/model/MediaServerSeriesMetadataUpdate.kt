@@ -18,6 +18,8 @@ data class MediaServerSeriesMetadataUpdate(
     val language: String? = null,
     val genres: List<String>? = null,
     val tags: List<String>? = null,
+    val characters: Collection<String>? = null,
+    val teams: Collection<String>? = null,
     val totalBookCount: Int? = null,
     val authors: Collection<MediaServerAuthor>? = null,
     val releaseYear: Int? = null,

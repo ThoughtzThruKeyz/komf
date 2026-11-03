@@ -73,6 +73,8 @@ class ConfigLoader(private val yaml: Yaml) {
             ?: metadataProvidersConfig.comicVineApiKey
         val comicVineSearchLimit = System.getenv("KOMF_METADATA_PROVIDERS_COMIC_VINE_SEARCH_LIMIT")?.ifBlank { null }
             ?: metadataProvidersConfig.comicVineSearchLimit
+        val metronApiKey = System.getenv("KOMF_METADATA_PROVIDERS_METRON_API_KEY")?.ifBlank { null }
+            ?: metadataProvidersConfig.metronApiKey
         val bangumiToken = System.getenv("KOMF_METADATA_PROVIDERS_BANGUMI_TOKEN")?.ifBlank { null }
             ?: metadataProvidersConfig.bangumiToken
 
@@ -93,6 +95,7 @@ class ConfigLoader(private val yaml: Yaml) {
             metadataProviders = metadataProvidersConfig.copy(
                 malClientId = malClientId,
                 comicVineApiKey = comicVineApiKey,
+                metronApiKey = metronApiKey,
                 bangumiToken = bangumiToken,
             ),
             notifications = config.notifications.copy(
@@ -120,6 +123,7 @@ class ConfigLoader(private val yaml: Yaml) {
             config.metadataProviders.defaultProviders.mangaDex.enabled.not() &&
             config.metadataProviders.defaultProviders.bangumi.enabled.not() &&
             config.metadataProviders.defaultProviders.comicVine.enabled.not() &&
+            config.metadataProviders.defaultProviders.metron.enabled.not() &&
             config.metadataProviders.defaultProviders.mangaBaka.enabled.not() &&
             config.metadataProviders.defaultProviders.webtoons.enabled.not() &&
             config.metadataProviders.libraryProviders.isEmpty()
