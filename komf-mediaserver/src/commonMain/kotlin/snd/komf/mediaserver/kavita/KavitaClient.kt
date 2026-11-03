@@ -2,6 +2,7 @@ package snd.komf.mediaserver.kavita
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
@@ -32,6 +33,7 @@ import snd.komf.mediaserver.kavita.model.request.KavitaSeriesMetadataUpdateReque
 import snd.komf.mediaserver.kavita.model.request.KavitaSeriesUpdateRequest
 import snd.komf.model.Image
 import java.util.*
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 class KavitaClient(
@@ -93,9 +95,14 @@ class KavitaClient(
         }
     }
 
+    // Kavita saves the metadata, then cleans unused people, genres, tags and
+    // reading progress out of the whole database before it answers. On a large
+    // or busy server that outlasts the usual 30 second read timeout, and the
+    // timeout would stop the update before covers and chapters are written.
     suspend fun updateSeriesMetadata(metadata: KavitaSeriesMetadataUpdateRequest) {
         updatesRateLimiter.acquire()
         ktor.post("api/series/metadata") {
+            timeout { socketTimeoutMillis = 5.minutes.inWholeMilliseconds }
             contentType(ContentType.Application.Json)
             setBody(metadata)
         }
