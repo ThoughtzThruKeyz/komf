@@ -3,6 +3,7 @@ package snd.komf.mediaserver
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
@@ -176,6 +177,7 @@ class MediaServerModule(
                 }
             }
             install(ContentNegotiation) { json(jsonBase) }
+            install(HttpTimeout)
         }
         kavitaAuthClient = KavitaAuthClient(kavitaKtorBase)
         kavitaTokenProvider = KavitaTokenProvider(
